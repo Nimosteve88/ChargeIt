@@ -33,7 +33,7 @@ def continuously_fetch_data():
             yesterday_data = fetch_data(urls["yesterday"])
             
             keys_price = ['buy_price', 'sell_price', 'day', 'tick']
-            keys_sun = ['sunrise', 'sunset', 'day', 'tick']
+            keys_sun = ['sun', 'tick']
             keys_demand = ['demand', 'day', 'tick']
             keys_deferables = ['deferables', 'day', 'tick']
             keys_yesterday = ['yesterday', 'day', 'tick']
@@ -49,7 +49,7 @@ def continuously_fetch_data():
             
             print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
             print(f"Buy Price: {price_data_extracted['buy_price']}, Sell Price: {price_data_extracted['sell_price']}")
-            print(f"Sunrise: {sun_data_extracted['sunrise']}, Sunset: {sun_data_extracted['sunset']}")
+            print(f"Sun: {sun_data_extracted['sun']}")
             print(f"Demand: {demand_data_extracted['demand']}")
             print(f"Deferables: {deferables_data_extracted['deferables']}")
             print(f"Yesterday: {yesterday_data_extracted['yesterday']}")
@@ -58,7 +58,7 @@ def continuously_fetch_data():
             print(f"Error fetching data: {e}")
         
         # Sleep for 5 seconds to ensure fetching data every tick
-        time.sleep(5)
+        time.sleep(4.5)
 
 # Start fetching data continuously
 continuously_fetch_data()
