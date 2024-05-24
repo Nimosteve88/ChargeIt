@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Display</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Live Data Display</h1>
+        <div id="data-container">
+            <h2>Data for Day <span id="day"></span>, Tick <span id="tick"></span></h2>
+            <p>Buy Price: <span id="buy_price"></span></p>
+            <p>Sell Price: <span id="sell_price"></span></p>
+            <p>Sun: <span id="sun"></span></p>
+            <p>Demand: <span id="demand"></span></p>
+        </div>
+        <div class="tables-wrapper">
+            <div class="table-container" id="history-table-container">
+                <h2>History</h2>
+                <table id="history-table">
+                    <thead>
+                        <tr>
+                            <th>Day</th>
+                            <th>Tick</th>
+                            <th>Buy Price</th>
+                            <th>Sell Price</th>
+                            <th>Sun</th>
+                            <th>Demand</th>
+                            <th>Yesterday</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+            <div class="table-container">
+                <h2>Deferables Data</h2>
+                <table id="deferables-table">
+                    <thead>
+                        <tr>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Energy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+            <div class="table-container">
+                <h2>Yesterday Data</h2>
+                <table id="yesterday-table">
+                    <thead>
+                        <tr>
+                            <th>Tick</th>
+                            <th>Buy Price</th>
+                            <th>Sell Price</th>
+                            <th>Demand</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script>
+        function updateData() {
+            $.getJSON('/data', function(data) {
+                const price_data = data.price_data;
+                const sun_data = data.sun_data;
+                const demand_data = data.demand_data;
+                const deferables_data = data.deferables_data.deferables;
+                const yesterday_data = data.yesterday_data.yesterday;
+
+                $("#day").text(price_data.day);
+                $("#tick").text(price_data.tick);
+                $("#buy_price").text(price_data.buy_price);
+                $("#sell_price").text(price_data.sell_price);
+                $("#sun").text(sun_data.sun);
+                $("#demand").text(demand_data.demand);
+
+                const newRow = `<tr>
+                    <td>${price_data.day}</td>
+                    <td>${price_data.tick}</td>
+                    <td>${price_data.buy_price}</td>
+                    <td>${price_data.sell_price}</td>
+                    <td>${sun_data.sun}</td>
+                    <td>${demand_data.demand}</td>
+                    <td>${yesterday_data.length}</td>
+                </tr>`;
+                $("#history-table tbody").append(newRow);
+
+                $("#deferables-table tbody").empty();
+                deferables_data.forEach(item => {
+                    const newDeferableRow = `<tr>
+                        <td>${item.start}</td>
+                        <td>${item.end}</td>
+                        <td>${item.energy}</td>
+                    </tr>`;
+                    $("#deferables-table tbody").append(newDeferableRow);
+                });
+
+                $("#yesterday-table tbody").empty();
+                yesterday_data.forEach(item => {
+                    const newYesterdayRow = `<tr>
+                        <td>${item.tick}</td>
+                        <td>${item.buy_price}</td>
+                        <td>${item.sell_price}</td>
+                        <td>${item.demand}</td>
+                    </tr>`;
+                    $("#yesterday-table tbody").append(newYesterdayRow);
+                });
+            });
+        }
+
+        $(document).ready(function() {
+            setInterval(updateData, 3500);
+        });
+    </script>
+</body>
+</html>

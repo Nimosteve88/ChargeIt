@@ -1,0 +1,147 @@
+/* General Settings */
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f8f9fa;
+    color: #343a40;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow-y: hidden;
+}
+
+/* Container Styling */
+.container {
+    width: 90%;
+    max-width: 80%;
+    max-height: 80%;
+    margin: 20px auto;
+    padding: 30px;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+}
+
+/* Header Styling */
+h1 {
+    text-align: center;
+    color: #007bff;
+    margin-bottom: 20px;
+    font-size: 2.5em;
+}
+
+h2 {
+    color: #495057;
+    margin-top: 30px;
+    font-size: 1.8em;
+}
+
+/* Data Container Styling */
+#data-container {
+    margin-bottom: 30px;
+    background: #e9ecef;
+    padding: 20px;
+    border-radius: 8px;
+}
+
+p {
+    font-size: 1.2em;
+    margin: 10px 0;
+    line-height: 1.6;
+}
+
+/* Tables Wrapper */
+.tables-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Table Styling */
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    display: inline-block;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: 2px solid #dee2e6;
+    vertical-align: top;
+}
+
+table, th, td {
+    border: none;
+}
+
+thead, tbody tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed; /* this ensures that the columns remain the same width when scrolling */
+}
+
+tbody {
+    display: block;
+    height: 200px; /* adjust as needed */
+    overflow-y: auto;
+}
+
+th, td {
+    padding: 20px;
+    text-align: left;
+}
+
+th {
+    background-color: #007bff;
+    color: #ffffff;
+    text-transform: uppercase;
+}
+
+td {
+    background-color: #f8f9fa;
+}
+
+tr:nth-child(even) td {
+    background-color: #e9ecef;
+}
+
+/* Scrolling Table Containers */
+.table-container {
+    width: 100%;
+    max-height: 240px; /* Set a max height to show 5 items max, including header */
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        width: 95%;
+        padding: 20px;
+    }
+
+    h1 {
+        font-size: 2em;
+    }
+
+    h2 {
+        font-size: 1.5em;
+    }
+
+    p {
+        font-size: 1em;
+    }
+
+    th, td {
+        padding: 10px;
+    }
+
+    .tables-wrapper {
+        flex-direction: column;
+    }
+}
