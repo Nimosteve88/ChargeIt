@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pico W Control Panel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            margin-top: 50px;
+        }
+        h1 {
+            color: #333;
+        }
+        .status {
+            font-size: 20px;
+            margin: 20px 0;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+            color: #fff;
+            background-color: #007BFF;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .button.off {
+            background-color: #DC3545;
+        }
+        .sensor {
+            font-size: 18px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pico W Control Panel</h1>
+        <div class="status">
+            <span>LED is <span id="ledStatus">OFF</span></span>
+        </div>
+        <a href="#" id="ledon" class="button">Turn LED On</a>
+        <a href="#" id="ledoff" class="button off">Turn LED Off</a>
+        <div class="sensor">
+            <span>Temperature: <span id="temperature">--</span> °C</span>
+        </div>
+    </div>
+
+    <script>
+        function updateLEDStatus(status) {
+            document.getElementById('ledStatus').innerText = status;
+        }
+
+        function updateTemperature(temp) {
+            document.getElementById('temperature').innerText = temp;
+        }
+
+        document.getElementById('ledon').addEventListener('click', function(e) {
+            e.preventDefault();
+            fetch('/ledon')
+                .then(response => response.json())
+                .then(data => updateLEDStatus(data.led))
+                .catch(err => console.log('Error:', err));
+        });
+
+        document.getElementById('ledoff').addEventListener('click', function(e) {
+            e.preventDefault();
+            fetch('/ledoff')
+                .then(response => response.json())
+                .then(data => updateLEDStatus(data.led))
+                .catch(err => console.log('Error:', err));
+        });
+
+        function fetchStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateLEDStatus(data.led);
+                    updateTemperature(data.temperature);
+                })
+                .catch(err => console.log('Error:', err));
+        }
+
+        setInterval(fetchStatus, 5000);
+        fetchStatus();
+    </script>
+</body>
+</html>

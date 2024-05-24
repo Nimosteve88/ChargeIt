@@ -4,44 +4,41 @@ import socket
 from machine import Pin
 from NetworkCredentials import NetworkCredentials
 
-ssid = 'VM8623524_EXT'
-password = 'v4jGjZpcfytv'
+ssid = 'SteveGalaxy'
+password = 'ChargeIt'
 
 # Set WiFi to station interface
 wlan = network.WLAN(network.STA_IF)
 # Activate the network interface
 wlan.active(True)
-# Connect to WiFi network
-wlan.connect(ssid, password)
 
-max_wait = 10
-# Wait for connection
-while max_wait > 0:
-    """
-        0   STAT_IDLE -- no connection and no activity,
-        1   STAT_CONNECTING -- connecting in progress,
-        -3  STAT_WRONG_PASSWORD -- failed due to incorrect password,
-        -2  STAT_NO_AP_FOUND -- failed because no access point replied,
-        -1  STAT_CONNECT_FAIL -- failed due to other problems,
-        3   STAT_GOT_IP -- connection successful.
-    """
-    if wlan.status() < 0 or wlan.status() >= 3:
-        # Connection successful
-        break
-    max_wait -= 1
-    print('Waiting for connection... ' + str(max_wait))
-    utime.sleep(1)
+# Check if already connected
+if not wlan.isconnected():
+    print('Connecting to network...')
+    wlan.connect(ssid, password)
 
-# Check connection
-if wlan.status() != 3:
-    # No connection
-    raise RuntimeError('Network connection failed')
+    max_wait = 10
+    # Wait for connection
+    while max_wait > 0:
+        if wlan.status() < 0 or wlan.status() >= 3:
+            # Connection successful
+            break
+        max_wait -= 1
+        print('Waiting for connection... ' + str(max_wait))
+        utime.sleep(1)
+
+    # Check connection
+    if wlan.status() != 3:
+        # No connection
+        raise RuntimeError('Network connection failed')
 else:
-    # Connection successful
-    print('WLAN connected')
-    status = wlan.ifconfig()
-    pico_ip = status[0]
-    print('IP = ' + status[0])
+    print('Already connected to network')
+
+# Connection successful
+print('WLAN connected')
+status = wlan.ifconfig()
+pico_ip = status[0]
+print('IP = ' + status[0])
 
 # Open socket
 addr = (pico_ip, 80)
@@ -54,20 +51,9 @@ led = Pin('LED', Pin.OUT)
 led.off()
 led_state = False
 
-# HTML content to be served
-html = """<!DOCTYPE html>
-<html>
-<head>
-    <title>Pico W LED Control</title>
-</head>
-<body>
-    <h1>LED is **ledState**</h1>
-    <a href="/ledon">Turn LED On</a>
-    <br>
-    <a href="/ledoff">Turn LED Off</a>
-</body>
-</html>
-"""
+def load_html():
+    with open("simpleled.html", "r") as file:
+        return file.read()
 
 # Main loop
 while True:
@@ -98,6 +84,7 @@ while True:
     if led_state:
         led_state_text = "ON"
 
+    html = load_html()
     response = html.replace('**ledState**', led_state_text)
     client.send('HTTP/1.1 200 OK\n')
     client.send('Content-Type: text/html\n')
