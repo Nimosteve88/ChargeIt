@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Price Data</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        header {
+            background: #333;
+            color: #fff;
+            width: 100%;
+            padding: 10px 0;
+            text-align: center;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        #chart-container {
+            width: 80%;
+            height: 50%;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        #latest-prices {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 20px;
+        }
+        .price {
+            display: inline-block;
+            margin: 0 20px;
+            padding: 10px 20px;
+            background: #007bff;
+            color: #fff;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Live Buy and Sell Price Data</h1>
+    </header>
+
+    <div id="chart-container">
+        <canvas id="priceChart"></canvas>
+    </div>
+
+    <div id="latest-prices">
+        <div class="price" id="latest-buy-price">Buy Price: -</div>
+        <div class="price" id="latest-sell-price">Sell Price: -</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        var ctx = document.getElementById('priceChart').getContext('2d');
+        var priceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Buy Price',
+                        data: [],
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 2,
+                        fill: false
+                    },
+                    {
+                        label: 'Sell Price',
+                        data: [],
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 2,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Tick'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Price'
+                        }
+                    }
+                }
+            }
+        });
+
+        function updateChart() {
+            fetch('/data')
+                .then(response => response.json())
+                .then(data => {
+                    priceChart.data.labels = data.ticks;
+                    priceChart.data.datasets[0].data = data.buy_prices;
+                    priceChart.data.datasets[1].data = data.sell_prices;
+                    priceChart.update();
+
+                    document.getElementById('latest-buy-price').textContent = 'Buy Price: ' + (data.buy_prices[data.buy_prices.length - 1] || '-');
+                    document.getElementById('latest-sell-price').textContent = 'Sell Price: ' + (data.sell_prices[data.sell_prices.length - 1] || '-');
+                });
+        }
+
+        setInterval(updateChart, 3500);
+    </script>
+</body>
+</html>
