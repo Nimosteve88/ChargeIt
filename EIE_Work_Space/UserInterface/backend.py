@@ -175,10 +175,20 @@ def index():
 def data():
     cursor.execute("SELECT tick, buy_price, sell_price FROM price_data ORDER BY tick ASC")
     rows = cursor.fetchall()
+    cursor.execute("SELECT demand FROM demand_data ORDER BY id DESC LIMIT 1")
+    current_demand = cursor.fetchone()[0]
+    cursor.execute("SELECT day FROM price_data ORDER BY id DESC LIMIT 1")
+    current_day = cursor.fetchone()[0]
+    cursor.execute("SELECT sun FROM sun_data ORDER BY id DESC LIMIT 1")
+    current_sun = cursor.fetchone()[0]
+    
     data = {
         "ticks": [row[0] for row in rows],
         "buy_prices": [row[1] for row in rows],
-        "sell_prices": [row[2] for row in rows]
+        "sell_prices": [row[2] for row in rows],
+        "current_demand": current_demand,
+        "current_day": current_day,
+        "current_sun": current_sun
     }
     return jsonify(data)
 

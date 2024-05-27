@@ -73,5 +73,5 @@ def delete_all_tables():
 
 #delete_all_data()
 #delete_all_tables()
-view_all_data()
-#view_data("deferables_data")
+#view_all_data()
+view_data("sun_data")
