@@ -4,6 +4,7 @@ import requests
 import time
 import json
 import threading
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -111,10 +112,6 @@ def update_deferables_data(deferables_data, day, tick):
         print(f"Error updating deferables_data: {e}")
         connection.rollback()
 
-def calculate_cumulative_average(df, column):
-    df[f'cumulative_avg_{column}'] = df[column].expanding().mean()
-    return df[f'cumulative_avg_{column}'].tolist()
-
 def update_yesterday_data(yesterday_data):
     try:
         cursor.execute("DELETE FROM yesterday_data")
@@ -127,6 +124,10 @@ def update_yesterday_data(yesterday_data):
     except Exception as e:
         print(f"Error updating yesterday_data: {e}")
         connection.rollback()
+
+def calculate_cumulative_average(df, column):
+    df[f'cumulative_avg_{column}'] = df[column].expanding().mean()
+    return df[f'cumulative_avg_{column}'].tolist()
 
 def continuously_fetch_data():
     while True:
@@ -158,7 +159,7 @@ def continuously_fetch_data():
             if tick == 1:
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
-
+            
             print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
             print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
             print(f"Sun: {sun_data_extracted.get('sun')}")
@@ -169,159 +170,67 @@ def continuously_fetch_data():
             print(f"Error fetching data: {e}")
         
         # Sleep for 3.5 seconds to ensure fetching data every interval
-        time.sleep(4.5)
-
-def run_udp_server():
-    # Define the server port
-    server_port = 12000
-
-    # Create a UDP socket
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    # Bind the server to the localhost at port server_port
-    server_socket.bind(('', server_port))
-
-    print('UDP Server running on port', server_port)
-
-    # Create a set to store client addresses
-    client_addresses = set()
-
-    while True:
-        # Receive a message from a client and print it
-        data, client_address = server_socket.recvfrom(2048)
-        data = data.decode()
-        if len(data) > 0:
-            print("Message from Client at", client_address, ":", data)
-
-            # Send confirmation back to the client that sent the message
-            confirmation_message = "Message received! "
-            server_socket.sendto(confirmation_message.encode(), client_address)
-
-        # Store the client's address
-        client_addresses.add(client_address)
-
-        # Send the received message to all other clients
-        for addr in client_addresses:
-            if addr != client_address:
-                server_socket.sendto(data.encode(), addr)
-
-def run_udp_server():
-    # Define the server port
-    server_port = 12000
-
-    # Create a UDP socket
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    # Bind the server to the localhost at port server_port
-    server_socket.bind(('', server_port))
-
-    print('UDP Server running on port', server_port)
-
-    # Create a set to store client addresses
-    client_addresses = set()
-
-    while True:
-        # Receive a message from a client and print it
-        data, client_address = server_socket.recvfrom(2048)
-        data = data.decode()
-        if len(data) > 0:
-            print("Message from Client at", client_address, ":", data)
-
-            # Send confirmation back to the client that sent the message
-            confirmation_message = "Message received! "
-            server_socket.sendto(confirmation_message.encode(), client_address)
-
-        # Store the client's address
-        client_addresses.add(client_address)
-
-        # Send the received message to all other clients
-        for addr in client_addresses:
-            if addr != client_address:
-                server_socket.sendto(data.encode(), addr)
+        time.sleep(3.5)
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('demands.html')
 
 @app.route('/data')
 def data():
-    cursor.execute("""
-        SELECT tick, buy_price, sell_price, day, timestamp
-        FROM price_data
-        WHERE day = (SELECT MAX(day) FROM price_data)
-        ORDER BY timestamp ASC
-    """)
-    rows = cursor.fetchall()
-    
-    # Organize data by day
-    data_by_day = {}
-    for row in rows:
-        day = row[3]
-        if day not in data_by_day:
-            data_by_day[day] = []
-        data_by_day[day].append(row)
-    
-    # Sort ticks within each day
-    sorted_rows = []
-    for day in sorted(data_by_day.keys()):
-        sorted_rows.extend(sorted(data_by_day[day], key=lambda x: x[0]))  # Sort by tick within each day
-    
-    cursor.execute("SELECT demand FROM demand_data ORDER BY id DESC LIMIT 1")
-    current_demand = cursor.fetchone()[0]
-    cursor.execute("SELECT day FROM price_data ORDER BY id DESC LIMIT 1")
-    current_day = cursor.fetchone()[0]
-    cursor.execute("SELECT sun FROM sun_data ORDER BY id DESC LIMIT 1")
-    current_sun = cursor.fetchone()[0]
-    
-    data = {
-        "ticks": [row[0] for row in sorted_rows],
-        "buy_prices": [row[1] for row in sorted_rows],
-        "sell_prices": [row[2] for row in sorted_rows],
-        "current_demand": current_demand,
-       "current_day": current_day,
-        "current_sun": current_sun
-    }
-    return jsonify(data)
+    try:
+        cursor.execute("SELECT tick, buy_price, sell_price FROM price_data ORDER BY tick ASC")
+        rows = cursor.fetchall()
+        if not rows:
+            return jsonify({"error": "No data available"}), 500
 
-@app.route('/alldata')
-def alldata():
-    cursor.execute("""
-        SELECT tick, buy_price, sell_price
-        FROM price_data
-    """)
-    rows = cursor.fetchall()
-    sorted_rows = sorted(rows, key=lambda x: x[0])  # Sort rows based on tick
-
-    df = pd.DataFrame(rows, columns=['tick', 'buy_price', 'sell_price'])
+        df = pd.DataFrame(rows, columns=['tick', 'buy_price', 'sell_price'])
 
         # Ensure all ticks are present
-    all_ticks = pd.DataFrame({'tick': range(df['tick'].min(), df['tick'].max() + 1)})
-    df = all_ticks.merge(df, on='tick', how='left').fillna(method='ffill')
+        all_ticks = pd.DataFrame({'tick': range(df['tick'].min(), df['tick'].max() + 1)})
+        df = all_ticks.merge(df, on='tick', how='left').fillna(method='ffill')
 
-    cumulative_buy_avg = calculate_cumulative_average(df, 'buy_price')
-    cumulative_sell_avg = calculate_cumulative_average(df, 'sell_price')
+        cumulative_buy_avg = calculate_cumulative_average(df, 'buy_price')
+        cumulative_sell_avg = calculate_cumulative_average(df, 'sell_price')
 
-    # Calculate the average buy price per tick
-    avg_buy_price_per_tick = df.groupby('tick')['buy_price'].mean().tolist()
+        cursor.execute("SELECT tick, demand FROM demand_data ORDER BY tick ASC")
+        demand_rows = cursor.fetchall()
+        if not demand_rows:
+            return jsonify({"error": "No demand data available"}), 500
 
-    cursor.execute("SELECT day FROM price_data ORDER BY id DESC LIMIT 1")
-    
-    data = {
-        "ticks": [row[0] for row in sorted_rows],
-        "buy_prices": [row[1] for row in sorted_rows],
-        "cumulative_buy_avg": cumulative_buy_avg,
-        "cumulative_sell_avg": cumulative_sell_avg,
-        "avg_buy_price_per_tick": avg_buy_price_per_tick,
-        "sell_prices": [row[2] for row in sorted_rows],
-    }
-    return jsonify(data)
+        demand_df = pd.DataFrame(demand_rows, columns=['tick', 'demand'])
+        all_demand_ticks = pd.DataFrame({'tick': range(demand_df['tick'].min(), demand_df['tick'].max() + 1)})
+        demand_df = all_demand_ticks.merge(demand_df, on='tick', how='left').fillna(method='ffill')
 
+        cumulative_demand_avg = calculate_cumulative_average(demand_df, 'demand')
+
+        cursor.execute("SELECT demand FROM demand_data ORDER BY id DESC LIMIT 1")
+        demand_row = cursor.fetchone()
+        current_demand = demand_row[0] if demand_row else None
+
+        cursor.execute("SELECT day FROM price_data ORDER BY id DESC LIMIT 1")
+        day_row = cursor.fetchone()
+        current_day = day_row[0] if day_row else None
+
+        cursor.execute("SELECT sun FROM sun_data ORDER BY id DESC LIMIT 1")
+        sun_row = cursor.fetchone()
+        current_sun = sun_row[0] if sun_row else None
+        
+        data = {
+            "ticks": df['tick'].tolist(),
+            "cumulative_buy_avg": cumulative_buy_avg,
+            "cumulative_sell_avg": cumulative_sell_avg,
+            "cumulative_demand_avg": cumulative_demand_avg,
+            "current_demand": current_demand,
+            "current_day": current_day,
+            "current_sun": current_sun
+        }
+        return jsonify(data)
+    except Exception as e:
+        print(f"Error fetching data: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     fetch_thread = threading.Thread(target=continuously_fetch_data)
     fetch_thread.start()
-    
-    udp_thread = threading.Thread(target=run_udp_server)
-    udp_thread.start()
-    
     app.run(debug=True)
