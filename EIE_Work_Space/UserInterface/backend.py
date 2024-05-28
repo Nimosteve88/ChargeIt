@@ -124,7 +124,19 @@ def update_yesterday_data(yesterday_data):
         print(f"Error updating yesterday_data: {e}")
         connection.rollback()
 
+def delete_old_data(current_day):
+    try:
+        # Delete data older than the previous day
+        cursor.execute("DELETE FROM price_data WHERE day < %s", (current_day - 1,))
+        connection.commit()
+        print(f"Deleted data older than day {current_day - 1}")
+    except Exception as e:
+        print(f"Error deleting old data: {e}")
+        connection.rollback()
+
 def continuously_fetch_data():
+    last_checked_day = None
+    
     while True:
         try:
             price_data = fetch_data(urls["price"])
@@ -154,6 +166,11 @@ def continuously_fetch_data():
             if tick == 1:
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
+                
+            # Check if the day has changed and delete old data if it has
+            if last_checked_day is None or day != last_checked_day:
+                delete_old_data(day)
+                last_checked_day = day
             
             print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
             print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
@@ -165,7 +182,7 @@ def continuously_fetch_data():
             print(f"Error fetching data: {e}")
         
         # Sleep for 3.5 seconds to ensure fetching data every interval
-        time.sleep(3.5)
+        time.sleep(5)
 
 @app.route('/')
 def index():
@@ -173,8 +190,27 @@ def index():
 
 @app.route('/data')
 def data():
-    cursor.execute("SELECT tick, buy_price, sell_price FROM price_data ORDER BY tick ASC")
+    cursor.execute("""
+        SELECT tick, buy_price, sell_price, day, timestamp
+        FROM price_data
+        WHERE day >= (SELECT MAX(day) FROM price_data) - 1
+        ORDER BY timestamp ASC
+    """)
     rows = cursor.fetchall()
+    
+    # Organize data by day
+    data_by_day = {}
+    for row in rows:
+        day = row[3]
+        if day not in data_by_day:
+            data_by_day[day] = []
+        data_by_day[day].append(row)
+    
+    # Sort ticks within each day
+    sorted_rows = []
+    for day in sorted(data_by_day.keys()):
+        sorted_rows.extend(sorted(data_by_day[day], key=lambda x: x[0]))  # Sort by tick within each day
+    
     cursor.execute("SELECT demand FROM demand_data ORDER BY id DESC LIMIT 1")
     current_demand = cursor.fetchone()[0]
     cursor.execute("SELECT day FROM price_data ORDER BY id DESC LIMIT 1")
@@ -183,9 +219,9 @@ def data():
     current_sun = cursor.fetchone()[0]
     
     data = {
-        "ticks": [row[0] for row in rows],
-        "buy_prices": [row[1] for row in rows],
-        "sell_prices": [row[2] for row in rows],
+        "ticks": [row[0] for row in sorted_rows],
+        "buy_prices": [row[1] for row in sorted_rows],
+        "sell_prices": [row[2] for row in sorted_rows],
         "current_demand": current_demand,
         "current_day": current_day,
         "current_sun": current_sun
