@@ -15,7 +15,7 @@
 
     <div class="dashboard">
         <div id="chart-container">
-            <canvas id="priceChart"></canvas>
+            <canvas id="liveChart"></canvas>
         </div>
 
         <div class="info-container">
@@ -34,8 +34,8 @@
     </div>
 
 
-    <div class="dashboard1">
-    <canvas id="liveChart"></canvas>
+<div class="dashboard1">
+    <canvas id="priceChart"></canvas>
 </div>
 
 <script>
@@ -75,7 +75,7 @@
 
     // Function to fetch data and update chart
     function fetchDataAndUpdateChart() {
-        fetch('/alldata')
+        fetch('/data')
             .then(response => response.json())
             .then(data => {
                 liveChart.data.datasets[0].data = data.buy_prices;
@@ -96,19 +96,34 @@
                 labels: [],
                 datasets: [
                     {
-                        label: 'Buy Price',
+                        label: 'Cumulative Average Buy Price',
                         data: [],
                         borderColor: 'rgba(75, 192, 192, 1)',
                         borderWidth: 2,
                         fill: false
                     },
                     {
-                        label: 'Sell Price',
+                        label: 'Cumulative Average Sell Price',
                         data: [],
                         borderColor: 'rgba(255, 99, 132, 1)',
                         borderWidth: 2,
                         fill: false
+                    },
+                    {
+                        label: 'Cumulative Average Demand',
+                        data: [],
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 2,
+                        fill: false
+                    },
+                    {
+                        label: 'Average Buy Price per Tick',
+                        data: [],
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        borderWidth: 2,
+                        fill: false
                     }
+                    
                 ]
             },
             options: {
@@ -145,7 +160,7 @@
         });
 
         function updateChart() {
-            fetch('/data')
+            fetch('/alldata')
                 .then(response => response.json())
                 .then(data => {
                     priceChart.data.labels = data.ticks;
