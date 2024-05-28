@@ -4,6 +4,7 @@ import requests
 import time
 import json
 import threading
+import socket
 
 app = Flask(__name__)
 
@@ -167,6 +168,40 @@ def continuously_fetch_data():
         # Sleep for 3.5 seconds to ensure fetching data every interval
         time.sleep(3.5)
 
+def run_udp_server():
+    # Define the server port
+    server_port = 12000
+
+    # Create a UDP socket
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    # Bind the server to the localhost at port server_port
+    server_socket.bind(('', server_port))
+
+    print('UDP Server running on port', server_port)
+
+    # Create a set to store client addresses
+    client_addresses = set()
+
+    while True:
+        # Receive a message from a client and print it
+        data, client_address = server_socket.recvfrom(2048)
+        data = data.decode()
+        if len(data) > 0:
+            print("Message from Client at", client_address, ":", data)
+
+            # Send confirmation back to the client that sent the message
+            confirmation_message = "Message received! "
+            server_socket.sendto(confirmation_message.encode(), client_address)
+
+        # Store the client's address
+        client_addresses.add(client_address)
+
+        # Send the received message to all other clients
+        for addr in client_addresses:
+            if addr != client_address:
+                server_socket.sendto(data.encode(), addr)
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -211,24 +246,28 @@ def data():
     }
     return jsonify(data)
 
-@app.route('/alldata')
-def alldata():
-    cursor.execute("""
-        SELECT tick, buy_price, sell_price
-        FROM price_data
-    """)
-    rows = cursor.fetchall()
-    sorted_rows = sorted(rows, key=lambda x: x[0])  # Sort rows based on tick
+# @app.route('/alldata')
+# def alldata():
+#     cursor.execute("""
+#         SELECT tick, buy_price, sell_price
+#         FROM price_data
+#     """)
+#     rows = cursor.fetchall()
+#     sorted_rows = sorted(rows, key=lambda x: x[0])  # Sort rows based on tick
 
-    data = {
-        "ticks": [row[0] for row in sorted_rows],
-        "buy_prices": [row[1] for row in sorted_rows],
-        "sell_prices": [row[2] for row in sorted_rows],
-    }
-    return jsonify(data)
+#     data = {
+#         "ticks": [row[0] for row in sorted_rows],
+#         "buy_prices": [row[1] for row in sorted_rows],
+#         "sell_prices": [row[2] for row in sorted_rows],
+#     }
+#     return jsonify(data)
 
 
 if __name__ == "__main__":
     fetch_thread = threading.Thread(target=continuously_fetch_data)
     fetch_thread.start()
+    
+    udp_thread = threading.Thread(target=run_udp_server)
+    udp_thread.start()
+    
     app.run(debug=True)
