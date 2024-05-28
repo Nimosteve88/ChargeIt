@@ -19,24 +19,32 @@
         </div>
 
         <div class="info-container">
-            <div class="latest-prices">
-                <div class="price" id="latest-buy-price">Buy Price: -</div>
-                <div class="price" id="latest-sell-price">Sell Price: -</div>
+            <div class="info-box" id="latest-buy-price">
+                <div class="info-title">Buy Price</div>
+                <div class="info-value">-</div>
             </div>
-            <div class="additional-info">
-                <div class="info" id="current-demand">Demand: -</div>
-                <div class="info" id="current-day">Day: -</div>
+            <div class="info-box" id="latest-sell-price">
+                <div class="info-title">Sell Price</div>
+                <div class="info-value">-</div>
             </div>
-            <div class="sun-info">
-                <div class="info" id="current-sun">Sunshine Intensity: -</div>
+            <div class="info-box" id="current-demand">
+                <div class="info-title">Demand</div>
+                <div class="info-value">-</div>
+            </div>
+            <div class="info-box" id="current-day">
+                <div class="info-title">Day</div>
+                <div class="info-value">-</div>
+            </div>
+            <div class="info-box" id="current-sun">
+                <div class="info-title">Sunshine Intensity</div>
+                <div class="info-value">-</div>
             </div>
         </div>
     </div>
 
-
-<div class="dashboard1">
-    <canvas id="priceChart"></canvas>
-</div>
+    <div class="dashboard1">
+        <canvas id="priceChart"></canvas>
+    </div>
 
 <script>
     var ctx = document.getElementById('liveChart').getContext('2d');
@@ -75,14 +83,21 @@
 
     // Function to fetch data and update chart
     function fetchDataAndUpdateChart() {
-        fetch('/data')
-            .then(response => response.json())
-            .then(data => {
-                liveChart.data.datasets[0].data = data.buy_prices;
-                liveChart.data.datasets[1].data = data.sell_prices;
-                liveChart.update();
-            });
-    }
+            fetch('/data')
+                .then(response => response.json())
+                .then(data => {
+                    liveChart.data.labels = data.ticks;
+                    liveChart.data.datasets[0].data = data.buy_prices;
+                    liveChart.data.datasets[1].data = data.sell_prices;
+                    liveChart.update();
+
+                    document.getElementById('latest-buy-price').querySelector('.info-value').textContent = data.buy_prices[data.buy_prices.length - 1] || '-';
+                    document.getElementById('latest-sell-price').querySelector('.info-value').textContent = data.sell_prices[data.sell_prices.length - 1] || '-';
+                    document.getElementById('current-demand').querySelector('.info-value').textContent = data.current_demand || '-';
+                    document.getElementById('current-day').querySelector('.info-value').textContent = data.current_day || '-';
+                    document.getElementById('current-sun').querySelector('.info-value').textContent = data.current_sun || '-';
+                });
+        }
 
     // Fetch data and update chart every second
     setInterval(fetchDataAndUpdateChart, 1000);
@@ -168,11 +183,11 @@
                     priceChart.data.datasets[1].data = data.sell_prices;
                     priceChart.update();
 
-                    document.getElementById('latest-buy-price').textContent = 'Buy Price: ' + (data.buy_prices[data.buy_prices.length - 1] || '-');
-                    document.getElementById('latest-sell-price').textContent = 'Sell Price: ' + (data.sell_prices[data.sell_prices.length - 1] || '-');
-                    document.getElementById('current-demand').textContent = 'Demand: ' + (data.current_demand || '-');
-                    document.getElementById('current-day').textContent = 'Day: ' + (data.current_day || '-');
-                    document.getElementById('current-sun').textContent = 'Sunshine Intensity: ' + (data.current_sun || '-');
+                    document.getElementById('latest-buy-price').querySelector('.info-value').textContent = data.buy_prices[data.buy_prices.length - 1] || '-';
+                    document.getElementById('latest-sell-price').querySelector('.info-value').textContent = data.sell_prices[data.sell_prices.length - 1] || '-';
+                    document.getElementById('current-demand').querySelector('.info-value').textContent = data.current_demand || '-';
+                    document.getElementById('current-day').querySelector('.info-value').textContent = data.current_day || '-';
+                    document.getElementById('current-sun').querySelector('.info-value').textContent = data.current_sun || '-';
                 });
         }
 
