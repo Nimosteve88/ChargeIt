@@ -33,6 +33,61 @@
         </div>
     </div>
 
+
+    <div class="dashboard1">
+    <canvas id="liveChart"></canvas>
+</div>
+
+<script>
+    var ctx = document.getElementById('liveChart').getContext('2d');
+    var liveChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Array.from({length: 60}, (_, i) => i),  // Generate labels from 0 to 59
+            datasets: [
+                {
+                    label: 'Buy Price',
+                    data: [],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 2,
+                    fill: false
+                },
+                {
+                    label: 'Sell Price',
+                    data: [],
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 2,
+                    fill: false
+                }
+            ]
+        },
+        options: {
+            scales: {
+                x: {
+                    beginAtZero: true
+                },
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // Function to fetch data and update chart
+    function fetchDataAndUpdateChart() {
+        fetch('/alldata')
+            .then(response => response.json())
+            .then(data => {
+                liveChart.data.datasets[0].data = data.buy_prices;
+                liveChart.data.datasets[1].data = data.sell_prices;
+                liveChart.update();
+            });
+    }
+
+    // Fetch data and update chart every second
+    setInterval(fetchDataAndUpdateChart, 1000);
+</script>
+
     <script>
         var ctx = document.getElementById('priceChart').getContext('2d');
         var priceChart = new Chart(ctx, {

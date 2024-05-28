@@ -124,19 +124,7 @@ def update_yesterday_data(yesterday_data):
         print(f"Error updating yesterday_data: {e}")
         connection.rollback()
 
-def delete_old_data(current_day):
-    try:
-        # Delete data older than the previous day
-        cursor.execute("DELETE FROM price_data WHERE day < %s", (current_day - 1,))
-        connection.commit()
-        print(f"Deleted data older than day {current_day - 1}")
-    except Exception as e:
-        print(f"Error deleting old data: {e}")
-        connection.rollback()
-
 def continuously_fetch_data():
-    last_checked_day = None
-    
     while True:
         try:
             price_data = fetch_data(urls["price"])
@@ -166,12 +154,7 @@ def continuously_fetch_data():
             if tick == 1:
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
-                
-            # Check if the day has changed and delete old data if it has
-            if last_checked_day is None or day != last_checked_day:
-                delete_old_data(day)
-                last_checked_day = day
-            
+
             print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
             print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
             print(f"Sun: {sun_data_extracted.get('sun')}")
@@ -182,7 +165,7 @@ def continuously_fetch_data():
             print(f"Error fetching data: {e}")
         
         # Sleep for 3.5 seconds to ensure fetching data every interval
-        time.sleep(5)
+        time.sleep(3.5)
 
 @app.route('/')
 def index():
@@ -227,6 +210,23 @@ def data():
         "current_sun": current_sun
     }
     return jsonify(data)
+
+@app.route('/alldata')
+def alldata():
+    cursor.execute("""
+        SELECT tick, buy_price, sell_price
+        FROM price_data
+    """)
+    rows = cursor.fetchall()
+    sorted_rows = sorted(rows, key=lambda x: x[0])  # Sort rows based on tick
+
+    data = {
+        "ticks": [row[0] for row in sorted_rows],
+        "buy_prices": [row[1] for row in sorted_rows],
+        "sell_prices": [row[2] for row in sorted_rows],
+    }
+    return jsonify(data)
+
 
 if __name__ == "__main__":
     fetch_thread = threading.Thread(target=continuously_fetch_data)
