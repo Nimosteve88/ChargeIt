@@ -87,21 +87,26 @@
 
     // Function to fetch data and update chart
     function fetchDataAndUpdateChart() {
-            fetch('/data')
-                .then(response => response.json())
-                .then(data => {
-                    liveChart.data.labels = data.ticks;
-                    liveChart.data.datasets[0].data = data.buy_prices;
-                    liveChart.data.datasets[1].data = data.sell_prices;
-                    liveChart.update();
+    fetch('/data')
+        .then(response => response.json())
+        .then(data => {
+            // Filter out duplicate ticks
+            var uniqueTicks = data.ticks.filter((tick, index, self) => self.indexOf(tick) === index);
 
-                    document.getElementById('latest-buy-price').querySelector('.info-value').textContent = data.buy_prices[data.buy_prices.length - 1] || '-';
-                    document.getElementById('latest-sell-price').querySelector('.info-value').textContent = data.sell_prices[data.sell_prices.length - 1] || '-';
-                    document.getElementById('current-demand').querySelector('.info-value').textContent = data.current_demand || '-';
-                    document.getElementById('current-day').querySelector('.info-value').textContent = data.current_day || '-';
-                    document.getElementById('current-sun').querySelector('.info-value').textContent = data.current_sun || '-';
-                });
-        }
+            // Update the chart's labels and data with the unique ticks and corresponding buy and sell prices
+            liveChart.data.labels = uniqueTicks;
+            liveChart.data.datasets[0].data = data.buy_prices;
+            liveChart.data.datasets[1].data = data.sell_prices;
+            liveChart.update();
+
+            // Update the latest prices and other information
+            document.getElementById('latest-buy-price').querySelector('.info-value').textContent = data.buy_prices[data.buy_prices.length - 1] || '-';
+            document.getElementById('latest-sell-price').querySelector('.info-value').textContent = data.sell_prices[data.sell_prices.length - 1] || '-';
+            document.getElementById('current-demand').querySelector('.info-value').textContent = data.current_demand || '-';
+            document.getElementById('current-day').querySelector('.info-value').textContent = data.current_day || '-';
+            document.getElementById('current-sun').querySelector('.info-value').textContent = data.current_sun || '-';
+        });
+}
 
     function fetchDecision(){
         fetch('/decision')

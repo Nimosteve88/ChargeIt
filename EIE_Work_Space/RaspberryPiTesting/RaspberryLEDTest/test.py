@@ -4,8 +4,8 @@ import socket
 from machine import Pin
 from NetworkCredentials import NetworkCredentials
 
-ssid = 'SteveGalaxy'
-password = 'ChargeIt'
+ssid = 'WIFI_NAME'
+password = 'WIFI_PASSWORD'
 
 # Set WiFi to station interface
 wlan = network.WLAN(network.STA_IF)
