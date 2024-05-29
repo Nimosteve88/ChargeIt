@@ -1,71 +1,70 @@
 from flask import Flask, jsonify, render_template
 import pandas as pd
-import psycopg2
 import requests
 import time
 import socket
 import json
 import threading
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, select, delete
+from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.exc import IntegrityError
+from datetime import datetime
 
 app = Flask(__name__)
 
 # Database connection details
-host = "chargeit-db-instance.cdflickwg4xn.us-east-1.rds.amazonaws.com"
-port = "5432"  # Default PostgreSQL port
-dbname = "initial_db"
-user = "postgres"
-password = "ChargeIt2024"
+DATABASE_URI = "postgresql+psycopg2://postgres:ChargeIt2024@chargeit-db-instance.cdflickwg4xn.us-east-1.rds.amazonaws.com:5432/initial_db"
 
-# Connect to the database
-connection = psycopg2.connect(
-    host=host,
-    port=port,
-    dbname=dbname,
-    user=user,
-    password=password
-)
-cursor = connection.cursor()
+# Setup SQLAlchemy
+engine = create_engine(DATABASE_URI)
+Session = sessionmaker(bind=engine)
+session = Session()
+Base = declarative_base()
+
+# Define table structures
+class PriceData(Base):
+    __tablename__ = 'price_data'
+    id = Column(Integer, primary_key=True)
+    buy_price = Column(Float)
+    sell_price = Column(Float)
+    day = Column(Integer)
+    tick = Column(Integer)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class SunData(Base):
+    __tablename__ = 'sun_data'
+    id = Column(Integer, primary_key=True)
+    sun = Column(Float)
+    tick = Column(Integer)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class DemandData(Base):
+    __tablename__ = 'demand_data'
+    id = Column(Integer, primary_key=True)
+    demand = Column(Float)
+    day = Column(Integer)
+    tick = Column(Integer)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class DeferablesData(Base):
+    __tablename__ = 'deferables_data'
+    id = Column(Integer, primary_key=True)
+    demand = Column(Float)
+    day = Column(Integer)
+    tick = Column(Integer)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class YesterdayData(Base):
+    __tablename__ = 'yesterday_data'
+    id = Column(Integer, primary_key=True)
+    buy_price = Column(Float)
+    demand = Column(Float)
+    sell_price = Column(Float)
+    tick = Column(Integer)
+    timestamp = Column(DateTime, default=datetime.utcnow)
 
 # Create tables if they don't exist
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS price_data (
-    id SERIAL PRIMARY KEY,
-    buy_price FLOAT,
-    sell_price FLOAT,
-    day INT,
-    tick INT,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS sun_data (
-    id SERIAL PRIMARY KEY,
-    sun FLOAT,
-    tick INT,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS demand_data (
-    id SERIAL PRIMARY KEY,
-    demand FLOAT,
-    day INT,
-    tick INT,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS deferables_data (
-    id SERIAL PRIMARY KEY,
-    demand FLOAT,
-    day INT,
-    tick INT,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS yesterday_data (
-    id SERIAL PRIMARY KEY,
-    buy_price FLOAT,
-    demand FLOAT,
-    sell_price FLOAT,
-    tick INT,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-""")
-connection.commit()
+Base.metadata.create_all(engine)
 
 # URLs of the external web servers
 urls = {
@@ -89,78 +88,82 @@ def extract_data(data, keys, key_for_list=None):
     else:
         return {key: None for key in keys}
 
-def insert_data_into_db(table_name, data):
-    columns = ', '.join(data.keys())
-    values = ', '.join(['%s'] * len(data))
-    query = f"INSERT INTO {table_name} ({columns}) VALUES ({values})"
+def insert_data_into_db(model_class, data):
+    session = Session()
+    instance = model_class(**data)
     try:
-        cursor.execute(query, list(data.values()))
-        connection.commit()
-    except Exception as e:
-        print(f"Error inserting data into {table_name}: {e}")
-        connection.rollback()
+        session.add(instance)
+        session.commit()
+    except IntegrityError as e:
+        session.rollback()
+        print(f"Error inserting data into {model_class.__tablename__}: {e}")
+    finally:
+        session.close()
 
 def update_deferables_data(deferables_data, day, tick):
+    session = Session()
     try:
-        cursor.execute("DELETE FROM deferables_data")
+        session.query(DeferablesData).delete()
         for deferable in deferables_data:
-            cursor.execute(
-                "INSERT INTO deferables_data (demand, day, tick) VALUES (%s, %s, %s)",
-                (deferable['energy'], day, tick)
-            )
-        connection.commit()
-    except Exception as e:
+            new_data = DeferablesData(demand=deferable['energy'], day=day, tick=tick)
+            session.add(new_data)
+        session.commit()
+    except IntegrityError as e:
+        session.rollback()
         print(f"Error updating deferables_data: {e}")
-        connection.rollback()
+    finally:
+        session.close()
 
 def calculate_cumulative_average(df, column):
     df[f'cumulative_avg_{column}'] = df[column].expanding().mean()
     return df[f'cumulative_avg_{column}'].tolist()
 
 def update_yesterday_data(yesterday_data):
+    session = Session()
     try:
-        cursor.execute("DELETE FROM yesterday_data")
+        session.query(YesterdayData).delete()
         for entry in yesterday_data:
-            cursor.execute(
-                "INSERT INTO yesterday_data (buy_price, demand, sell_price, tick) VALUES (%s, %s, %s, %s)",
-                (entry['buy_price'], entry['demand'], entry['sell_price'], entry['tick'])
-            )
-        connection.commit()
-    except Exception as e:
+            new_data = YesterdayData(buy_price=entry['buy_price'], demand=entry['demand'], sell_price=entry['sell_price'], tick=entry['tick'])
+            session.add(new_data)
+        session.commit()
+    except IntegrityError as e:
+        session.rollback()
         print(f"Error updating yesterday_data: {e}")
-        connection.rollback()
+    finally:
+        session.close()
         
 decision = "HOLD"
 
-def fetch_last_n_sell_prices(conn, current_day, current_tick, n):
-    query = f"""
-    SELECT sell_price FROM price_data
-    WHERE day = {current_day} AND tick < {current_tick}
-    ORDER BY tick DESC
-    LIMIT {n}
-    """
-    return pd.read_sql(query, conn)['sell_price'].tolist()
+def fetch_last_n_sell_prices(current_day, current_tick, n):
+    session = Session()
+    try:
+        query = select(PriceData.sell_price).filter(PriceData.day == current_day, PriceData.tick < current_tick).order_by(PriceData.tick.desc()).limit(n)
+        result = session.execute(query).scalars().all()
+    finally:
+        session.close()
+    return result
 
-def fetch_last_n_sell_prices_yesterday(conn, n):
-    query = f"""
-    SELECT sell_price FROM yesterday_data
-    ORDER BY tick DESC
-    LIMIT {n}
-    """
-    return pd.read_sql(query, conn)['sell_price'].tolist()
+def fetch_last_n_sell_prices_yesterday(n):
+    session = Session()
+    try:
+        query = select(YesterdayData.sell_price).order_by(YesterdayData.tick.desc()).limit(n)
+        result = session.execute(query).scalars().all()
+    finally:
+        session.close()
+    return result
 
-def trading_strategy(conn, current_day, current_tick, current_sell_price):
+def trading_strategy(current_day, current_tick, current_sell_price):
     global decision
     try:
-        last_4_sell_prices = fetch_last_n_sell_prices(conn, current_day, current_tick, 4)
+        last_4_sell_prices = fetch_last_n_sell_prices(current_day, current_tick, 4)
         
         if len(last_4_sell_prices) < 4:
             remaining_needed = 4 - len(last_4_sell_prices)
-            last_4_sell_prices += fetch_last_n_sell_prices_yesterday(conn, remaining_needed)
+            last_4_sell_prices += fetch_last_n_sell_prices_yesterday(remaining_needed)
         
         all_sell_prices = last_4_sell_prices + [current_sell_price]
         avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
-        prev_sell_price = last_4_sell_prices[0]
+        prev_sell_price = last_4_sell_prices[0] if last_4_sell_prices else 0
 
         if current_sell_price > prev_sell_price * 1.15:
             if current_sell_price > avg_sell_price * 1.45:
@@ -172,31 +175,35 @@ def trading_strategy(conn, current_day, current_tick, current_sell_price):
         else:
             decision = "HOLD"
     except Exception as e:
-        print(f"Error fetching data: {e}")
+        print(f"Error in trading_strategy: {e}")
 
 def continuously_fetch_data():
-    while True:
-        try:
-            price_data = fetch_data(urls["price"])
-            sun_data = fetch_data(urls["sun"])
-            demand_data = fetch_data(urls["demand"])
-            deferables_data = fetch_data(urls["deferables"])
-            yesterday_data = fetch_data(urls["yesterday"])
-            
-            keys_price = ['buy_price', 'sell_price', 'day', 'tick']
-            keys_sun = ['sun', 'tick']
-            keys_demand = ['demand', 'day', 'tick']
-            keys_deferables = ['demand']  # Extracting energy as demand
-            keys_yesterday = ['buy_price', 'demand', 'sell_price', 'tick']
+    last_tick = None  # Initialize the last_tick variable
 
-            price_data_extracted = extract_data(price_data, keys_price)
-            sun_data_extracted = extract_data(sun_data, keys_sun)
-            demand_data_extracted = extract_data(demand_data, keys_demand)
-            
+    while True:
+        price_data = fetch_data(urls["price"])
+        sun_data = fetch_data(urls["sun"])
+        demand_data = fetch_data(urls["demand"])
+        deferables_data = fetch_data(urls["deferables"])
+        yesterday_data = fetch_data(urls["yesterday"])
+        
+        keys_price = ['buy_price', 'sell_price', 'day', 'tick']
+        keys_sun = ['sun', 'tick']
+        keys_demand = ['demand', 'day', 'tick']
+        keys_deferables = ['demand']  # Extracting energy as demand
+        keys_yesterday = ['buy_price', 'demand', 'sell_price', 'tick']
+
+        price_data_extracted = extract_data(price_data, keys_price)
+        sun_data_extracted = extract_data(sun_data, keys_sun)
+        demand_data_extracted = extract_data(demand_data, keys_demand)
+        
+        current_tick = price_data_extracted.get('tick', None)
+
+        if current_tick != last_tick:  # Only perform tasks if the tick is different
             # Insert data into the respective tables
-            insert_data_into_db("price_data", price_data_extracted)
-            insert_data_into_db("sun_data", sun_data_extracted)
-            insert_data_into_db("demand_data", demand_data_extracted)
+            insert_data_into_db(PriceData, price_data_extracted)
+            insert_data_into_db(SunData, sun_data_extracted)
+            insert_data_into_db(DemandData, demand_data_extracted)
             
             day = price_data_extracted.get('day', 'N/A')
             tick = price_data_extracted.get('tick', 'N/A')
@@ -205,7 +212,7 @@ def continuously_fetch_data():
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
             
-            trading_strategy(connection, day, tick, price_data_extracted.get('sell_price'))
+            trading_strategy(day, tick, price_data_extracted.get('sell_price'))
 
             print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
             print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
@@ -213,45 +220,8 @@ def continuously_fetch_data():
             print(f"Demand: {demand_data_extracted.get('demand')}")
             print("----------------------------------------------------------\n")
             print("Data inserted into the database successfully")
-        except Exception as e:
-            print(f"Error fetching data: {e}")
-        
-        # Sleep for 3.5 seconds to ensure fetching data every interval
-        time.sleep(4.5)
-
-def run_udp_server():
-    # Define the server port
-    server_port = 12000
-
-    # Create a UDP socket
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    # Bind the server to the localhost at port server_port
-    server_socket.bind(('', server_port))
-
-    print('UDP Server running on port', server_port)
-
-    # Create a set to store client addresses
-    client_addresses = set()
-
-    while True:
-        # Receive a message from a client and print it
-        data, client_address = server_socket.recvfrom(2048)
-        data = data.decode()
-        if len(data) > 0:
-            print("Message from Client at", client_address, ":", data)
-
-            # Send confirmation back to the client that sent the message
-            confirmation_message = "Message received! "
-            server_socket.sendto(confirmation_message.encode(), client_address)
-
-        # Store the client's address
-        client_addresses.add(client_address)
-
-        # Send the received message to all other clients
-        for addr in client_addresses:
-            if addr != client_address:
-                server_socket.sendto(data.encode(), addr)
+            
+            last_tick = current_tick  # Update the last_tick after processing
 
 def run_udp_server():
     # Define the server port
@@ -293,76 +263,85 @@ def index():
 
 @app.route('/data')
 def data():
-    cursor.execute("""
-        SELECT tick, buy_price, sell_price, day, timestamp
-        FROM price_data
-        WHERE day = (SELECT MAX(day) FROM price_data)
-        ORDER BY timestamp ASC
-    """)
-    rows = cursor.fetchall()
-    
-    # Organize data by day
-    data_by_day = {}
-    for row in rows:
-        day = row[3]
-        if day not in data_by_day:
-            data_by_day[day] = []
-        data_by_day[day].append(row)
-    
-    # Sort ticks within each day
-    sorted_rows = []
-    for day in sorted(data_by_day.keys()):
-        sorted_rows.extend(sorted(data_by_day[day], key=lambda x: x[0]))  # Sort by tick within each day
-    
-    cursor.execute("SELECT demand FROM demand_data ORDER BY id DESC LIMIT 1")
-    current_demand = cursor.fetchone()[0]
-    cursor.execute("SELECT day FROM price_data ORDER BY id DESC LIMIT 1")
-    current_day = cursor.fetchone()[0]
-    cursor.execute("SELECT sun FROM sun_data ORDER BY id DESC LIMIT 1")
-    current_sun = cursor.fetchone()[0]
-    
-    data = {
-        "ticks": [row[0] for row in sorted_rows],
-        "buy_prices": [row[1] for row in sorted_rows],
-        "sell_prices": [row[2] for row in sorted_rows],
-        "current_demand": current_demand,
-       "current_day": current_day,
-        "current_sun": current_sun
-    }
-    return jsonify(data)
+    session = Session()
+    try:
+        result = session.execute("""
+            SELECT DISTINCT ON (tick) tick, buy_price, sell_price, day, timestamp
+            FROM price_data
+            WHERE day = (SELECT MAX(day) FROM price_data)
+            ORDER BY tick, timestamp ASC
+        """).fetchall()
+        rows = [dict(row) for row in result]
+        
+        if not rows:
+            return jsonify({"ticks": [], "buy_prices": [], "sell_prices": [], "current_demand": "-", "current_day": "-", "current_sun": "-"})
+
+        # Organize data by day
+        data_by_day = {}
+        for row in rows:
+            day = row['day']
+            if day not in data_by_day:
+                data_by_day[day] = []
+            data_by_day[day].append(row)
+        
+        # Sort ticks within each day
+        sorted_rows = []
+        for day in sorted(data_by_day.keys()):
+            sorted_rows.extend(sorted(data_by_day[day], key=lambda x: x['tick']))  # Sort by tick within each day
+        
+        current_demand = session.execute("SELECT demand FROM demand_data ORDER BY id DESC LIMIT 1").scalar() or '-'
+        current_day = session.execute("SELECT day FROM price_data ORDER BY id DESC LIMIT 1").scalar() or '-'
+        current_sun = session.execute("SELECT sun FROM sun_data ORDER BY id DESC LIMIT 1").scalar() or '-'
+        
+        data = {
+            "ticks": [row['tick'] for row in sorted_rows],
+            "buy_prices": [row['buy_price'] for row in sorted_rows],
+            "sell_prices": [row['sell_price'] for row in sorted_rows],
+            "current_demand": current_demand,
+            "current_day": current_day,
+            "current_sun": current_sun
+        }
+        return jsonify(data)
+    finally:
+        session.close()
 
 @app.route('/alldata')
 def alldata():
-    cursor.execute("""
-        SELECT tick, buy_price, sell_price
-        FROM price_data
-    """)
-    rows = cursor.fetchall()
-    sorted_rows = sorted(rows, key=lambda x: x[0])  # Sort rows based on tick
+    session = Session()
+    try:
+        result = session.execute("""
+            SELECT tick, buy_price, sell_price, day, timestamp
+            FROM price_data
+            ORDER BY tick ASC
+        """).fetchall()
+        rows = [dict(row) for row in result]
 
-    df = pd.DataFrame(rows, columns=['tick', 'buy_price', 'sell_price'])
+        if not rows:
+            return jsonify({"ticks": [], "buy_prices": [], "cumulative_buy_avg": [], "cumulative_sell_avg": [], "avg_buy_price_per_tick": [], "sell_prices": []})
+
+        df = pd.DataFrame(rows, columns=['tick', 'buy_price', 'sell_price', 'day', 'timestamp'])
 
         # Ensure all ticks are present
-    all_ticks = pd.DataFrame({'tick': range(df['tick'].min(), df['tick'].max() + 1)})
-    df = all_ticks.merge(df, on='tick', how='left').fillna(method='ffill')
+        all_ticks = pd.DataFrame({'tick': range(df['tick'].min(), df['tick'].max() + 1)})
+        df = all_ticks.merge(df, on='tick', how='left').ffill()
 
-    cumulative_buy_avg = calculate_cumulative_average(df, 'buy_price')
-    cumulative_sell_avg = calculate_cumulative_average(df, 'sell_price')
+        cumulative_buy_avg = calculate_cumulative_average(df, 'buy_price')
+        cumulative_sell_avg = calculate_cumulative_average(df, 'sell_price')
 
-    # Calculate the average buy price per tick
-    avg_buy_price_per_tick = df.groupby('tick')['buy_price'].mean().tolist()
+        # Calculate the average buy price per tick
+        avg_buy_price_per_tick = df.groupby('tick')['buy_price'].mean().tolist()
 
-    cursor.execute("SELECT day FROM price_data ORDER BY id DESC LIMIT 1")
-    
-    data = {
-        "ticks": [row[0] for row in sorted_rows],
-        "buy_prices": [row[1] for row in sorted_rows],
-        "cumulative_buy_avg": cumulative_buy_avg,
-        "cumulative_sell_avg": cumulative_sell_avg,
-        "avg_buy_price_per_tick": avg_buy_price_per_tick,
-        "sell_prices": [row[2] for row in sorted_rows],
-    }
-    return jsonify(data)
+        data = {
+            "ticks": df['tick'].tolist(),
+            "buy_prices": df['buy_price'].tolist(),
+            "cumulative_buy_avg": cumulative_buy_avg,
+            "cumulative_sell_avg": cumulative_sell_avg,
+            "avg_buy_price_per_tick": avg_buy_price_per_tick,
+            "sell_prices": df['sell_price'].tolist()
+        }
+        return jsonify(data)
+    finally:
+        session.close()
 
 @app.route('/decision')
 def get_decision():

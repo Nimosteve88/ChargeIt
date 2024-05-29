@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Price Data</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
 </head>
@@ -85,6 +86,17 @@
         }
     });
 
+    function updateInfoBox(id, newValue) {
+        var element = document.getElementById(id).querySelector('.info-value');
+        if (element.textContent !== newValue) {
+            element.textContent = newValue;
+            element.classList.add('updated');
+            setTimeout(() => {
+                element.classList.remove('updated');
+            }, 500);
+        }
+    }
+
     // Function to fetch data and update chart
     function fetchDataAndUpdateChart() {
     fetch('/data')
@@ -94,17 +106,18 @@
             var uniqueTicks = data.ticks.filter((tick, index, self) => self.indexOf(tick) === index);
 
             // Update the chart's labels and data with the unique ticks and corresponding buy and sell prices
-            liveChart.data.labels = uniqueTicks;
+            //liveChart.data.labels = uniqueTicks;
+            liveChart.data.labels = data.ticks;
             liveChart.data.datasets[0].data = data.buy_prices;
             liveChart.data.datasets[1].data = data.sell_prices;
             liveChart.update();
 
             // Update the latest prices and other information
-            document.getElementById('latest-buy-price').querySelector('.info-value').textContent = data.buy_prices[data.buy_prices.length - 1] || '-';
-            document.getElementById('latest-sell-price').querySelector('.info-value').textContent = data.sell_prices[data.sell_prices.length - 1] || '-';
-            document.getElementById('current-demand').querySelector('.info-value').textContent = data.current_demand || '-';
-            document.getElementById('current-day').querySelector('.info-value').textContent = data.current_day || '-';
-            document.getElementById('current-sun').querySelector('.info-value').textContent = data.current_sun || '-';
+            updateInfoBox('latest-buy-price', data.buy_prices[data.buy_prices.length - 1] || '-');
+            updateInfoBox('latest-sell-price', data.sell_prices[data.sell_prices.length - 1]);
+            updateInfoBox('current-demand', data.current_demand);
+            updateInfoBox('current-day', data.current_day);
+            updateInfoBox('current-sun', data.current_sun);
         });
 }
 
@@ -112,12 +125,12 @@
         fetch('/decision')
             .then(response => response.json())
             .then(data => {
-                document.getElementById('trading-decision').querySelector('.info-value').textContent = data.decision || '-';
+                updateInfoBox('trading-decision', data.decision || '-');
             });
     }
 
     // Fetch data and update chart every second
-    setInterval(fetchDataAndUpdateChart, 1000);
+    setInterval(fetchDataAndUpdateChart, 4500);
 
     // Fetch trading decision every 4.7 seconds
     setInterval(fetchDecision, 4700)
@@ -203,11 +216,11 @@
                     priceChart.data.datasets[1].data = data.sell_prices;
                     priceChart.update();
 
-                    document.getElementById('latest-buy-price').querySelector('.info-value').textContent = data.buy_prices[data.buy_prices.length - 1] || '-';
-                    document.getElementById('latest-sell-price').querySelector('.info-value').textContent = data.sell_prices[data.sell_prices.length - 1] || '-';
-                    document.getElementById('current-demand').querySelector('.info-value').textContent = data.current_demand || '-';
-                    document.getElementById('current-day').querySelector('.info-value').textContent = data.current_day || '-';
-                    document.getElementById('current-sun').querySelector('.info-value').textContent = data.current_sun || '-';
+                    updateInfoBox('latest-buy-price', data.buy_prices[data.buy_prices.length - 1] || '-');
+                    updateInfoBox('latest-sell-price', data.sell_prices[data.sell_prices.length - 1] || '-');
+                    updateInfoBox('current-demand', data.current_demand || '-');
+                    updateInfoBox('current-day', data.current_day || '-');
+                    updateInfoBox('current-sun', data.current_sun || '-');
                 });
         }
 
