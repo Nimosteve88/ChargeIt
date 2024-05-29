@@ -152,19 +152,49 @@ def fetch_last_n_sell_prices_yesterday(n):
         session.close()
     return result
 
-def trading_strategy(current_day, current_tick, current_sell_price):
+def fetch_last_n_buy_prices(current_day, current_tick, n):
+    session = Session()
+    try:
+        query = select(PriceData.buy_price).filter(PriceData.day == current_day, PriceData.tick < current_tick).order_by(PriceData.tick.desc()).limit(n)
+        result = session.execute(query).scalars().all()
+    finally:
+        session.close()
+    return result
+
+def fetch_last_n_buy_prices_yesterday(n):
+    session = Session()
+    try:
+        query = select(YesterdayData.buy_price).order_by(YesterdayData.tick.desc()).limit(n)
+        result = session.execute(query).scalars().all()
+    finally:
+        session.close()
+    return result
+
+def trading_strategy(current_day, current_tick, current_buy_price, current_sell_price):
     global decision
     try:
+        # Fetch the last 4 sell prices
         last_4_sell_prices = fetch_last_n_sell_prices(current_day, current_tick, 4)
+        # Fetch the last 4 buy prices
+        last_4_buy_prices = fetch_last_n_buy_prices(current_day, current_tick, 4)
         
         if len(last_4_sell_prices) < 4:
             remaining_needed = 4 - len(last_4_sell_prices)
             last_4_sell_prices += fetch_last_n_sell_prices_yesterday(remaining_needed)
         
+        if len(last_4_buy_prices) < 4:
+            remaining_needed = 4 - len(last_4_buy_prices)
+            last_4_buy_prices += fetch_last_n_buy_prices_yesterday(remaining_needed)
+        
         all_sell_prices = last_4_sell_prices + [current_sell_price]
+        all_buy_prices = last_4_buy_prices + [current_buy_price]
+        
         avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
+        avg_buy_price = sum(all_buy_prices) / len(all_buy_prices)
+        
         prev_sell_price = last_4_sell_prices[0] if last_4_sell_prices else 0
-
+        prev_buy_price = last_4_buy_prices[0] if last_4_buy_prices else 0
+        
         if current_sell_price > prev_sell_price * 1.15:
             if current_sell_price > avg_sell_price * 1.45:
                 decision = "SELL"
@@ -172,6 +202,8 @@ def trading_strategy(current_day, current_tick, current_sell_price):
                 decision = "HOLD"
         elif current_sell_price < prev_sell_price and current_sell_price > avg_sell_price * 1.5:
             decision = "SELL"
+        elif current_buy_price < avg_buy_price * 0.85 and current_buy_price < prev_buy_price * 0.85:
+            decision = "BUY"
         else:
             decision = "HOLD"
     except Exception as e:
@@ -212,7 +244,8 @@ def continuously_fetch_data():
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
             
-            trading_strategy(day, tick, price_data_extracted.get('sell_price'))
+            current_buy_price = price_data_extracted.get('buy_price', None)
+            trading_strategy(day, tick, current_buy_price, price_data_extracted.get('sell_price'))
 
             print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
             print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
@@ -222,6 +255,7 @@ def continuously_fetch_data():
             print("Data inserted into the database successfully")
             
             last_tick = current_tick  # Update the last_tick after processing
+
 
 def run_udp_server():
     # Define the server port

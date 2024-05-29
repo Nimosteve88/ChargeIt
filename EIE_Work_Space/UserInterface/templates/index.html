@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Price Data</title>
+    <title>Charge It to the Max</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -11,43 +11,49 @@
 </head>
 <body>
     <header>
-        <h1>Live Price Data</h1>
+        <h1>Charge It to the Max</h1>
     </header>
 
     <div class="dashboard">
-        <div id="chart-container">
-            <canvas id="liveChart"></canvas>
+        <div class="dashboard-header">
+            <h2 class="dashboard-title">Live Feed Data</h2>
         </div>
+        <div class="dashboard-content">
+            <div id="chart-container">
+                <canvas id="liveChart"></canvas>
+            </div>
 
-        <div class="info-container">
-            <div class="info-box" id="latest-buy-price">
-                <div class="info-title">Buy Price</div>
-                <div class="info-value">-</div>
-            </div>
-            <div class="info-box" id="latest-sell-price">
-                <div class="info-title">Sell Price</div>
-                <div class="info-value">-</div>
-            </div>
-            <div class="info-box" id="current-demand">
-                <div class="info-title">Demand</div>
-                <div class="info-value">-</div>
-            </div>
-            <div class="info-box" id="current-day">
-                <div class="info-title">Day</div>
-                <div class="info-value">-</div>
-            </div>
-            <div class="info-box" id="current-sun">
-                <div class="info-title">Sunshine Intensity</div>
-                <div class="info-value">-</div>
-            </div>
-            <div class="info-box" id="trading-decision">
-                <div class="info-title">Trading Decision</div>
-                <div class="info-value">-</div>
+            <div class="info-container">
+                <div class="info-box" id="latest-buy-price">
+                    <div class="info-title">Buy Price</div>
+                    <div class="info-value">-</div>
+                </div>
+                <div class="info-box" id="latest-sell-price">
+                    <div class="info-title">Sell Price</div>
+                    <div class="info-value">-</div>
+                </div>
+                <div class="info-box" id="current-demand">
+                    <div class="info-title">Demand</div>
+                    <div class="info-value">-</div>
+                </div>
+                <div class="info-box" id="current-day">
+                    <div class="info-title">Day</div>
+                    <div class="info-value">-</div>
+                </div>
+                <div class="info-box" id="current-sun">
+                    <div class="info-title">Sunshine Intensity</div>
+                    <div class="info-value">-</div>
+                </div>
+                <div class="info-box" id="trading-decision">
+                    <div class="info-title">Trading Decision</div>
+                    <div class="info-value">-</div>
+                </div>
             </div>
         </div>
     </div>
 
     <div class="dashboard1">
+        <h2 class="dashboard-title">Overall Data Trend</h2>
         <canvas id="priceChart"></canvas>
     </div>
 

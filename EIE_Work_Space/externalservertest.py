@@ -1,24 +1,61 @@
+import threading
+from sqlalchemy import create_engine, Column, Integer, Float, DateTime
+from sqlalchemy.orm import sessionmaker, declarative_base
+from datetime import datetime
 import requests
-import psycopg2
-import pandas as pd
 import json
+from time import sleep
 
 # Database connection details
-host = "chargeit-db-instance.cdflickwg4xn.us-east-1.rds.amazonaws.com"
-port = "5432"  # Default PostgreSQL port
-dbname = "initial_db"
-user = "postgres"
-password = "ChargeIt2024"
+DATABASE_URI = "postgresql+psycopg2://postgres:ChargeIt2024@chargeit-db-instance.cdflickwg4xn.us-east-1.rds.amazonaws.com:5432/initial_db"
 
-# Connect to the database
-connection = psycopg2.connect(
-    host=host,
-    port=port,
-    dbname=dbname,
-    user=user,
-    password=password
-)
-cursor = connection.cursor()
+# Setup SQLAlchemy
+engine = create_engine(DATABASE_URI)
+Session = sessionmaker(bind=engine)
+session = Session()
+Base = declarative_base()
+
+# Define table structures
+class PriceData(Base):
+    __tablename__ = 'price_data'
+    id = Column(Integer, primary_key=True)
+    buy_price = Column(Float)
+    sell_price = Column(Float)
+    day = Column(Integer)
+    tick = Column(Integer)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class SunData(Base):
+    __tablename__ = 'sun_data'
+    id = Column(Integer, primary_key=True)
+    sun = Column(Float)
+    tick = Column(Integer)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class DemandData(Base):
+    __tablename__ = 'demand_data'
+    id = Column(Integer, primary_key=True)
+    demand = Column(Float)
+    day = Column(Integer)
+    tick = Column(Integer)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class DeferablesData(Base):
+    __tablename__ = 'deferables_data'
+    id = Column(Integer, primary_key=True)
+    demand = Column(Float)
+    day = Column(Integer)
+    tick = Column(Integer)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class YesterdayData(Base):
+    __tablename__ = 'yesterday_data'
+    id = Column(Integer, primary_key=True)
+    buy_price = Column(Float)
+    demand = Column(Float)
+    sell_price = Column(Float)
+    tick = Column(Integer)
+    timestamp = Column(DateTime, default=datetime.utcnow)
 
 # URLs of the external web servers
 urls = {
@@ -42,135 +79,83 @@ def extract_data(data, keys, key_for_list=None):
     else:
         return {key: None for key in keys}
 
-def insert_data_into_db(table_name, data):
-    columns = ', '.join(data.keys())
-    values = ', '.join(['%s'] * len(data))
-    query = f"INSERT INTO {table_name} ({columns}) VALUES ({values})"
+def insert_data_into_db(model_class, data):
+    session = Session()
+    instance = model_class(**data)
     try:
-        cursor.execute(query, list(data.values()))
-        connection.commit()
-    except Exception as e:
-        print(f"Error inserting data into {table_name}: {e}")
-        connection.rollback()
+        session.add(instance)
+        session.commit()
+    finally:
+        session.close()
 
 def update_deferables_data(deferables_data, day, tick):
+    session = Session()
     try:
-        cursor.execute("DELETE FROM deferables_data")
+        session.query(DeferablesData).delete()
         for deferable in deferables_data:
-            cursor.execute(
-                "INSERT INTO deferables_data (demand, day, tick) VALUES (%s, %s, %s)",
-                (deferable['energy'], day, tick)
-            )
-        connection.commit()
-    except Exception as e:
-        print(f"Error updating deferables_data: {e}")
-        connection.rollback()
+            new_data = DeferablesData(demand=deferable['energy'], day=day, tick=tick)
+            session.add(new_data)
+        session.commit()
+    finally:
+        session.close()
 
 def update_yesterday_data(yesterday_data):
+    session = Session()
     try:
-        cursor.execute("DELETE FROM yesterday_data")
+        session.query(YesterdayData).delete()
         for entry in yesterday_data:
-            cursor.execute(
-                "INSERT INTO yesterday_data (buy_price, demand, sell_price, tick) VALUES (%s, %s, %s, %s)",
-                (entry['buy_price'], entry['demand'], entry['sell_price'], entry['tick'])
-            )
-        connection.commit()
-    except Exception as e:
-        print(f"Error updating yesterday_data: {e}")
-        connection.rollback()
+            new_data = YesterdayData(buy_price=entry['buy_price'], demand=entry['demand'], sell_price=entry['sell_price'], tick=entry['tick'])
+            session.add(new_data)
+        session.commit()
+    finally:
+        session.close()
 
-def fetch_last_n_sell_prices(conn, current_day, current_tick, n):
-    query = f"""
-    SELECT sell_price FROM price_data
-    WHERE day = {current_day} AND tick < {current_tick}
-    ORDER BY tick DESC
-    LIMIT {n}
-    """
-    return pd.read_sql(query, conn)['sell_price'].tolist()
-
-def fetch_last_n_sell_prices_yesterday(conn, n):
-    query = f"""
-    SELECT sell_price FROM yesterday_data
-    ORDER BY tick DESC
-    LIMIT {n}
-    """
-    return pd.read_sql(query, conn)['sell_price'].tolist()
-
-def trading_strategy(conn, current_day, current_tick, current_sell_price):
-    global decision
-    try:
-        last_4_sell_prices = fetch_last_n_sell_prices(conn, current_day, current_tick, 4)
-        
-        if len(last_4_sell_prices) < 4:
-            remaining_needed = 4 - len(last_4_sell_prices)
-            last_4_sell_prices += fetch_last_n_sell_prices_yesterday(conn, remaining_needed)
-        
-        all_sell_prices = last_4_sell_prices + [current_sell_price]
-        avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
-        prev_sell_price = last_4_sell_prices[0]
-
-        if current_sell_price > prev_sell_price * 1.15:
-            if current_sell_price > avg_sell_price * 1.45:
-                decision = "SELL"
-            else:
-                decision = "HOLD"
-        elif current_sell_price < prev_sell_price and current_sell_price > avg_sell_price * 1.5:
-            decision = "SELL"
-        else:
-            decision = "HOLD"
-    except Exception as e:
-        print(f"Error fetching data: {e}")
 
 def continuously_fetch_data():
     last_tick = None  # Initialize the last_tick variable
 
     while True:
-        try:
-            price_data = fetch_data(urls["price"])
-            sun_data = fetch_data(urls["sun"])
-            demand_data = fetch_data(urls["demand"])
-            deferables_data = fetch_data(urls["deferables"])
-            yesterday_data = fetch_data(urls["yesterday"])
-            
-            keys_price = ['buy_price', 'sell_price', 'day', 'tick']
-            keys_sun = ['sun', 'tick']
-            keys_demand = ['demand', 'day', 'tick']
-            keys_deferables = ['demand']  # Extracting energy as demand
-            keys_yesterday = ['buy_price', 'demand', 'sell_price', 'tick']
-
-            price_data_extracted = extract_data(price_data, keys_price)
-            sun_data_extracted = extract_data(sun_data, keys_sun)
-            demand_data_extracted = extract_data(demand_data, keys_demand)
-            
-            current_tick = price_data_extracted.get('tick', None)
-
-            if current_tick != last_tick:  # Only perform tasks if the tick is different
-                # Insert data into the respective tables
-                insert_data_into_db("price_data", price_data_extracted)
-                insert_data_into_db("sun_data", sun_data_extracted)
-                insert_data_into_db("demand_data", demand_data_extracted)
-                
-                day = price_data_extracted.get('day', 'N/A')
-                tick = price_data_extracted.get('tick', 'N/A')
-                
-                if tick == 1:
-                    update_deferables_data(deferables_data, day, tick)
-                    update_yesterday_data(yesterday_data)
-                
-                trading_strategy(connection, day, tick, price_data_extracted.get('sell_price'))
-
-                print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
-                print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
-                print(f"Sun: {sun_data_extracted.get('sun')}")
-                print(f"Demand: {demand_data_extracted.get('demand')}")
-                print("----------------------------------------------------------\n")
-                print("Data inserted into the database successfully")
-                
-                last_tick = current_tick  # Update the last_tick after processing
-        except Exception as e:
-            print(f"Error fetching data: {e}")
+        price_data = fetch_data(urls["price"])
+        sun_data = fetch_data(urls["sun"])
+        demand_data = fetch_data(urls["demand"])
+        deferables_data = fetch_data(urls["deferables"])
+        yesterday_data = fetch_data(urls["yesterday"])
         
-        # Remove time.sleep(4.5)
+        keys_price = ['buy_price', 'sell_price', 'day', 'tick']
+        keys_sun = ['sun', 'tick']
+        keys_demand = ['demand', 'day', 'tick']
+        keys_deferables = ['demand']  # Extracting energy as demand
+        keys_yesterday = ['buy_price', 'demand', 'sell_price', 'tick']
+
+        price_data_extracted = extract_data(price_data, keys_price)
+        sun_data_extracted = extract_data(sun_data, keys_sun)
+        demand_data_extracted = extract_data(demand_data, keys_demand)
+        
+        current_tick = price_data_extracted.get('tick', None)
+
+        if current_tick != last_tick:  # Only perform tasks if the tick is different
+            # Insert data into the respective tables
+            insert_data_into_db(PriceData, price_data_extracted)
+            insert_data_into_db(SunData, sun_data_extracted)
+            insert_data_into_db(DemandData, demand_data_extracted)
+            
+            day = price_data_extracted.get('day', 'N/A')
+            tick = price_data_extracted.get('tick', 'N/A')
+            
+            if tick == 1:
+                update_deferables_data(deferables_data, day, tick)
+                update_yesterday_data(yesterday_data)
+            
+
+            print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
+            print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
+            print(f"Sun: {sun_data_extracted.get('sun')}")
+            print(f"Demand: {demand_data_extracted.get('demand')}")
+            print("----------------------------------------------------------\n")
+            print("Data inserted into the database successfully")
+            
+            last_tick = current_tick  # Update the last_tick after processing
+
 
 if __name__ == "__main__":
     continuously_fetch_data()
