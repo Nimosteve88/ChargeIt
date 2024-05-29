@@ -100,7 +100,6 @@ def main():
         tick = price_data_extracted.get('tick')
         current_sell_price = price_data_extracted.get('sell_price')
         trading_strategy(conn, day, tick, current_sell_price)
-        #print(f"Day: {day}, Tick: {tick}, Sell Price: {current_sell_price}, Action: {action}")
         time.sleep(4.7)
     conn.close()
 

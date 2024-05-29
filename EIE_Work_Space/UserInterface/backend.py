@@ -129,6 +129,50 @@ def update_yesterday_data(yesterday_data):
     except Exception as e:
         print(f"Error updating yesterday_data: {e}")
         connection.rollback()
+        
+decision = "HOLD"
+
+def fetch_last_n_sell_prices(conn, current_day, current_tick, n):
+    query = f"""
+    SELECT sell_price FROM price_data
+    WHERE day = {current_day} AND tick < {current_tick}
+    ORDER BY tick DESC
+    LIMIT {n}
+    """
+    return pd.read_sql(query, conn)['sell_price'].tolist()
+
+def fetch_last_n_sell_prices_yesterday(conn, n):
+    query = f"""
+    SELECT sell_price FROM yesterday_data
+    ORDER BY tick DESC
+    LIMIT {n}
+    """
+    return pd.read_sql(query, conn)['sell_price'].tolist()
+
+def trading_strategy(conn, current_day, current_tick, current_sell_price):
+    global decision
+    try:
+        last_4_sell_prices = fetch_last_n_sell_prices(conn, current_day, current_tick, 4)
+        
+        if len(last_4_sell_prices) < 4:
+            remaining_needed = 4 - len(last_4_sell_prices)
+            last_4_sell_prices += fetch_last_n_sell_prices_yesterday(conn, remaining_needed)
+        
+        all_sell_prices = last_4_sell_prices + [current_sell_price]
+        avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
+        prev_sell_price = last_4_sell_prices[0]
+
+        if current_sell_price > prev_sell_price * 1.15:
+            if current_sell_price > avg_sell_price * 1.45:
+                decision = "SELL"
+            else:
+                decision = "HOLD"
+        elif current_sell_price < prev_sell_price and current_sell_price > avg_sell_price * 1.5:
+            decision = "SELL"
+        else:
+            decision = "HOLD"
+    except Exception as e:
+        print(f"Error fetching data: {e}")
 
 def continuously_fetch_data():
     while True:
@@ -160,6 +204,8 @@ def continuously_fetch_data():
             if tick == 1:
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
+            
+            trading_strategy(connection, day, tick, price_data_extracted.get('sell_price'))
 
             print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
             print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
@@ -317,6 +363,11 @@ def alldata():
         "sell_prices": [row[2] for row in sorted_rows],
     }
     return jsonify(data)
+
+@app.route('/decision')
+def get_decision():
+    global decision
+    return jsonify({'decision': decision})
 
 
 if __name__ == "__main__":

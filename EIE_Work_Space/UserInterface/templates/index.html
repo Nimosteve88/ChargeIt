@@ -39,6 +39,10 @@
                 <div class="info-title">Sunshine Intensity</div>
                 <div class="info-value">-</div>
             </div>
+            <div class="info-box" id="trading-decision">
+                <div class="info-title">Trading Decision</div>
+                <div class="info-value">-</div>
+            </div>
         </div>
     </div>
 
@@ -99,8 +103,19 @@
                 });
         }
 
+    function fetchDecision(){
+        fetch('/decision')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('trading-decision').querySelector('.info-value').textContent = data.decision || '-';
+            });
+    }
+
     // Fetch data and update chart every second
     setInterval(fetchDataAndUpdateChart, 1000);
+
+    // Fetch trading decision every 4.7 seconds
+    setInterval(fetchDecision, 4700)
 </script>
 
     <script>
