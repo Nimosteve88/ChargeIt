@@ -73,12 +73,12 @@ def trading_strategy(conn, current_day, current_tick, current_sell_price):
         avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
         prev_sell_price = last_4_sell_prices[0]  # The most recent previous sell price
 
-        if current_sell_price > prev_sell_price:
-            if current_sell_price > avg_sell_price:
+        if current_sell_price > prev_sell_price * 1.15:
+            if current_sell_price > avg_sell_price * 1.45:
                 print(f"tick: {current_tick},  SELL")
             else:
                 print(f"tick: {current_tick},  HOLD")
-        elif current_sell_price < prev_sell_price and current_sell_price > avg_sell_price:
+        elif current_sell_price < prev_sell_price and current_sell_price > avg_sell_price * 1.5:
             print(f"tick: {current_tick},  SELL")
         else:
             print(f"tick: {current_tick},  HOLD")
