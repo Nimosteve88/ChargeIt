@@ -1,4 +1,10 @@
 from machine import Pin, I2C, ADC, PWM, Timer
+import usocket as socket
+import uselect as select
+import json
+import utime
+import network
+import socket
 
 # Set up some pin allocations for the Analogues and switches
 va_pin = ADC(Pin(28))
@@ -23,9 +29,18 @@ trip = 0
 OC = 0
 
 # The potentiometer is prone to noise so we are filtering the value using a moving average
-v_pot_filt = [0] * 100
+v_pot_filt = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+v_pot_filt = [float(x) for x in v_pot_filt]
 v_pot_index = 0
-
 # Gains etc for the PID controller
 i_ref = 0  # Voltage reference for the CL modes
 i_err = 0  # Voltage error
@@ -49,6 +64,47 @@ Vold = 0
 Pold = 0
 Vref = 7  # initial arbitrary value near MPP
 deltaVref = 0.1
+
+#function to send to server
+def send_message_to_server(message):
+    # Define the server name and port client wishes to access
+    server_name = '192.168.194.92'   # Replace with current IP Address
+    server_port = 12001
+    client_port = 10001  # Change this to 11000 for the second client, every client must have unique port number
+    # Create a UDP client socket
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    client_socket.bind(('', client_port))
+    print("UDP client running...")
+    print("Connecting to server at IP:", server_name, "PORT:", server_port)
+    #This checks the state of message and performs the necessary encoding in order to send the message to the server
+    if type(message) == str:
+        msg = message.encode()
+    elif type(message) == float or type(message) == int:
+        msg = str(message).encode()
+    elif type(message) == dict:
+        msg = json.dumps(message).encode()
+    else:
+        print("Invalid message type. Please provide a string, float, integer or dictionary.")
+        return
+    # Send the message to the server
+    client_socket.sendto(msg, (server_name, server_port))
+    # Set up the polling object for timeout handling
+    poll = select.poll()
+    poll.register(client_socket, select.POLLIN)
+    # Wait for a response with a timeout of 2 seconds
+    events = poll.poll(2000)  # 2000 milliseconds
+    if events:
+        for event in events:
+            if event[1] & select.POLLIN:
+                data, server_address = client_socket.recvfrom(2048)
+                if data:
+                    print("Message from Server:", data.decode())
+    else:
+        print("No response from server within timeout period.")
+    # Close the socket
+    client_socket.close()
+    # Print message sent confirmation
+    print("Message has been successfully sent.")
 
 # Saturation function for anything you want saturated within bounds
 def saturate(signal, upper, lower):
@@ -195,6 +251,8 @@ while True:
 
         # This set of prints execute
         Power = va*iL
+        #Power to be send to the server
+        send_message_to_server(Power)       
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
         if count > 100:
             print("Power = {:.3f}".format(Power))
