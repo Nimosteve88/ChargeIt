@@ -157,5 +157,9 @@ def continuously_fetch_data():
             last_tick = current_tick  # Update the last_tick after processing
 
 
+
+            
+
+
 if __name__ == "__main__":
     continuously_fetch_data()

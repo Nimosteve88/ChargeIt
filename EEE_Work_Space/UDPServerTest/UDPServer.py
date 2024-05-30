@@ -2,7 +2,7 @@ import socket
 
 
 # Define the server port
-server_port = 12000
+server_port = 12001
 # Create a UDP socket
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 # Bind the server to the localhost at port server_port

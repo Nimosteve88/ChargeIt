@@ -245,7 +245,9 @@ def continuously_fetch_data():
                 update_yesterday_data(yesterday_data)
             
             current_buy_price = price_data_extracted.get('buy_price', None)
+            ####################################################################
             trading_strategy(day, tick, current_buy_price, price_data_extracted.get('sell_price'))
+
 
             print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
             print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
@@ -256,10 +258,25 @@ def continuously_fetch_data():
             
             last_tick = current_tick  # Update the last_tick after processing
 
+def send_message_to_client(message, client_address, client_port):
+    # Create a socket object
+    s = socket.socket()
+    try:
+        # Connect to the client
+        s.connect((client_address, client_port))
+        # Send the message
+        s.send(message.encode())
+    except Exception as e:
+        print(f"Error in send_message_to_client: {e}")
+    finally:
+        # Close the connection
+        s.close()
+
+
 
 def run_udp_server():
     # Define the server port
-    server_port = 12000
+    server_port = 12001
 
     # Create a UDP socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

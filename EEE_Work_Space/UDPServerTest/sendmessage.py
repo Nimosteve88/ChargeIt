@@ -3,7 +3,7 @@ import uselect as select
 import json
 
 def send_message_to_server(message):
-    # Define the server name and port client wishes to access
+    # Define the   server name and port client wishes to access
     server_name = '192.168.0.103'   # Replace with current IP Address
     server_port = 10000
     client_port = 10001  # Change this to 11000 for the second client, every client must have unique port number
