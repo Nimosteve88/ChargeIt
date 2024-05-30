@@ -20,8 +20,8 @@ while not terminate:
     # msg = input("Enter a message you want to send to the server: ")
 
     # Create a dictionary
-    msg_dict = {"energy": 55, "reserve": 523}
-    msg = json.dumps(msg_dict).encode()  # Convert the dictionary to a JSON string and then encode it to bytes
+    #msg_dict = {"energy": 55, "reserve": 523}
+    #msg = json.dumps(msg_dict).encode()  # Convert the dictionary to a JSON string and then encode it to bytes
 
     # Check if the user wants to terminate the chat
     if msg.lower() == 'cancel'.encode():

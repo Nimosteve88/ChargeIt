@@ -43,5 +43,10 @@ def send_message_to_server(message):
     print("Message has been successfully sent.")
 
 # Example usage:
-# message = "Hello, World!"
-# send_message_to_server(message)
+
+while True:
+    message = input("Enter a message you want to send to the server: ")
+    if message.lower() == 'exit':
+        break
+    send_message_to_server(message)
+

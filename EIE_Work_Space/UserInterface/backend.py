@@ -74,6 +74,31 @@ urls = {
     "deferables": "https://icelec50015.azurewebsites.net/deferables",
     "yesterday": "https://icelec50015.azurewebsites.net/yesterday"
 }
+demandraspberrypi = None
+
+def send_message_to_client(message, client_address, client_port):
+    # Create a socket object
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # Send the message but consider the message type
+        if isinstance(message, str):
+            msg = message.encode()
+        elif isinstance(message, float) or isinstance(message, int):
+            msg = str(message).encode()
+        elif isinstance(message, dict):
+            msg = json.dumps(message).encode()
+        else:
+            print("Invalid message type. Please provide a string, float, integer or dictionary.")
+            return
+        # Send the message to the client
+        s.sendto(msg, (client_address, client_port))
+        print(f"Message sent to {client_address}:{client_port}")
+    except Exception as e:
+        print(f"Error in send_message_to_client: {e}")
+    finally:
+        # Close the socket
+        s.close()
+
 
 def fetch_data(url):
     response = requests.get(url)
@@ -239,20 +264,25 @@ def continuously_fetch_data():
             
             day = price_data_extracted.get('day', 'N/A')
             tick = price_data_extracted.get('tick', 'N/A')
-            
+            demand = demand_data_extracted.get('demand', 'N/A')
+
             if tick == 1:
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
+            # global demandraspberrypi
+            # if demandraspberrypi is not None:
+            #     print(f"Sending demand to {demandraspberrypi[0]}:{demandraspberrypi[1]}")
+            #     send_message_to_client( demand, demandraspberrypi[0], demandraspberrypi[1])
             
             current_buy_price = price_data_extracted.get('buy_price', None)
             trading_strategy(day, tick, current_buy_price, price_data_extracted.get('sell_price'))
 
-            print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
-            print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
-            print(f"Sun: {sun_data_extracted.get('sun')}")
-            print(f"Demand: {demand_data_extracted.get('demand')}")
-            print("----------------------------------------------------------\n")
-            print("Data inserted into the database successfully")
+            # print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
+            # print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
+            # print(f"Sun: {sun_data_extracted.get('sun')}")
+            # print(f"Demand: {demand_data_extracted.get('demand')}")
+            # print("----------------------------------------------------------\n")
+            # print("Data inserted into the database successfully")
             
             last_tick = current_tick  # Update the last_tick after processing
 
@@ -278,7 +308,11 @@ def run_udp_server():
         data = data.decode()
         if len(data) > 0:
             print("Message from Client at", client_address, ":", data)
-
+            #check if data is equal to 'demand'
+            # if data == 'demand':
+            #     print("Demand data received from Raspberry Pi")
+            #     global demandraspberrypi
+            #     demandraspberrypi = client_address
             # Send confirmation back to the client that sent the message
             confirmation_message = "Message received! "
             server_socket.sendto(confirmation_message.encode(), client_address)
