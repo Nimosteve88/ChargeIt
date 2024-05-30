@@ -5,7 +5,7 @@ import time
 import socket
 import json
 import threading
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, select, delete
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, select, delete, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
@@ -299,13 +299,16 @@ def index():
 def data():
     session = Session()
     try:
-        result = session.execute("""
+        result = session.execute(text("""
             SELECT DISTINCT ON (tick) tick, buy_price, sell_price, day, timestamp
             FROM price_data
             WHERE day = (SELECT MAX(day) FROM price_data)
             ORDER BY tick, timestamp ASC
-        """).fetchall()
-        rows = [dict(row) for row in result]
+        """)).fetchall()
+        
+        # rows = [{column: value for column, value in row.items()} for row in result]
+
+        rows = [dict(row._mapping) for row in result]
         
         if not rows:
             return jsonify({"ticks": [], "buy_prices": [], "sell_prices": [], "current_demand": "-", "current_day": "-", "current_sun": "-"})
@@ -323,9 +326,9 @@ def data():
         for day in sorted(data_by_day.keys()):
             sorted_rows.extend(sorted(data_by_day[day], key=lambda x: x['tick']))  # Sort by tick within each day
         
-        current_demand = session.execute("SELECT demand FROM demand_data ORDER BY id DESC LIMIT 1").scalar() or '-'
-        current_day = session.execute("SELECT day FROM price_data ORDER BY id DESC LIMIT 1").scalar() or '-'
-        current_sun = session.execute("SELECT sun FROM sun_data ORDER BY id DESC LIMIT 1").scalar() or '-'
+        current_demand = session.execute(text("SELECT demand FROM demand_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
+        current_day = session.execute(text("SELECT day FROM price_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
+        current_sun = session.execute(text("SELECT sun FROM sun_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
         
         data = {
             "ticks": [row['tick'] for row in sorted_rows],
@@ -343,12 +346,15 @@ def data():
 def alldata():
     session = Session()
     try:
-        result = session.execute("""
+        result = session.execute(text("""
             SELECT tick, buy_price, sell_price, day, timestamp
             FROM price_data
             ORDER BY tick ASC
-        """).fetchall()
-        rows = [dict(row) for row in result]
+        """)).fetchall()
+        
+       # rows = [{column: value for column, value in row.items()} for row in result]
+
+        rows = [dict(row._mapping) for row in result]
 
         if not rows:
             return jsonify({"ticks": [], "buy_prices": [], "cumulative_buy_avg": [], "cumulative_sell_avg": [], "avg_buy_price_per_tick": [], "sell_prices": []})
@@ -376,6 +382,7 @@ def alldata():
         return jsonify(data)
     finally:
         session.close()
+
 
 @app.route('/decision')
 def get_decision():
