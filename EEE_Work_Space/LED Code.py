@@ -8,7 +8,7 @@ pwm = PWM(Pin(0))
 pwm.freq(100000)
 pwm_en = Pin(1, Pin.OUT)
 
-pid = PID(0.2, 10, 0, setpoint=0.0, scale='ms')
+pid = PID(0.2, 10, 0, setpoint=0.333, scale='ms')
 pidvout = PID(0.2, 10, 0, setpoint= 3, scale='ms')
 
 count = 0
@@ -45,7 +45,7 @@ while True:
     vled = vout - vret
     ledpower = vled * iout
     
-    if count > 100:
+    if count > 1000:
         print("Vin = {:.3f}".format(vin))
         print("Vout = {:.3f}".format(vout))
         print("Vret = {:.3f}".format(vret))
