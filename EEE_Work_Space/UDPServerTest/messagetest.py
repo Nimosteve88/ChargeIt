@@ -10,7 +10,7 @@ from machine import Pin, ADC
 
 def send_message_to_server(message):
     # Define the server name and port client wishes to access
-    server_name = '172.20.10.5'   # Replace with current IP Address
+    server_name = '192.168.0.103'   # Replace with current IP Address
     server_port = 12000
     client_port = 10001  # Change this to 11000 for the second client, every client must have unique port number
     # Create a UDP client socket
@@ -48,42 +48,45 @@ def send_message_to_server(message):
     # Print message sent confirmation
     print("Message has been successfully sent.")
 
-ssid = 'Ade_13'
-password = 'praisethelord'
+# ssid = 'Ade_13'
+# password = 'praisethelord'
 
-# Set WiFi to station interface
-wlan = network.WLAN(network.STA_IF)
-# Activate the network interface
-wlan.active(True)
+# # Set WiFi to station interface
+# wlan = network.WLAN(network.STA_IF)
+# # Activate the network interface
+# wlan.active(True)
 
-# Check if already connected
-if not wlan.isconnected():
-    print('Connecting to network...')
-    wlan.connect(ssid, password)
+# # Check if already connected
+# if not wlan.isconnected():
+#     print('Connecting to network...')
+#     wlan.connect(ssid, password)
 
-    max_wait = 10
-    # Wait for connection
-    while max_wait > 0:
-        if wlan.status() < 0 or wlan.status() >= 3:
-            # Connection successful
-            break
-        max_wait -= 1
-        print('Waiting for connection... ' + str(max_wait))
-        utime.sleep(1)
+#     max_wait = 10
+#     # Wait for connection
+#     while max_wait > 0:
+#         if wlan.status() < 0 or wlan.status() >= 3:
+#             # Connection successful
+#             break
+#         max_wait -= 1
+#         print('Waiting for connection... ' + str(max_wait))
+#         utime.sleep(1)
 
-    # Check connection
-    if wlan.status() != 3:
-        # No connection
-        raise RuntimeError('Network connection failed')
-else:
-    print('Already connected to network')
+#     # Check connection
+#     if wlan.status() != 3:
+#         # No connection
+#         raise RuntimeError('Network connection failed')
+# else:
+#     print('Already connected to network')
 
-# Connection successful
-print('WLAN connected')
-status = wlan.ifconfig()
-pico_ip = status[0]
-print('IP = ' + status[0])
+# # Connection successful
+# print('WLAN connected')
+# status = wlan.ifconfig()
+# pico_ip = status[0]
+# print('IP = ' + status[0])
 
 # Example usage:
-message = "Hello, World!"
-send_message_to_server(message)
+while True:
+    message = input("Enter message: ")
+    send_message_to_server(message)
+    utime.sleep(2)  
+

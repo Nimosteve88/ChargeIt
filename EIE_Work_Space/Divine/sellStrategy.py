@@ -54,7 +54,7 @@ def fetch_last_n_sell_prices_yesterday(conn, n):
     return pd.read_sql(query, conn)['sell_price'].tolist()
 
 # Function to implement the trading strategy
-def trading_strategy(conn, current_day, current_tick, current_sell_price):
+def selling_strategy(conn, current_day, current_tick, current_sell_price):
     try:
         last_4_sell_prices = fetch_last_n_sell_prices(conn, current_day, current_tick, 4)
         
@@ -99,7 +99,7 @@ def main():
         day = price_data_extracted.get('day')
         tick = price_data_extracted.get('tick')
         current_sell_price = price_data_extracted.get('sell_price')
-        trading_strategy(conn, day, tick, current_sell_price)
+        selling_strategy(conn, day, tick, current_sell_price)
         time.sleep(4.7)
     conn.close()
 

@@ -1,1 +1,68 @@
+from machine import Pin, I2C, ADC, PWM
+from PID import PID
 
+vret_pin = ADC(Pin(26))
+vout_pin = ADC(Pin(28))
+vin_pin = ADC(Pin(27))
+pwm = PWM(Pin(0))
+pwm.freq(100000)
+pwm_en = Pin(1, Pin.OUT)
+
+pid = PID(0.2, 10, 0, setpoint=0.333, scale='ms')
+pidvout = PID(0.2, 10, 0, setpoint= 3, scale='ms')
+
+count = 0
+pwm_out = 0
+pwm_ref = 0
+setpoint = 0.0
+delta = 0.05
+
+global SHUNT_OHMS
+SHUNT_OHMS = 1.02
+
+def saturate(duty):
+    if duty > 62500:
+        duty = 62500
+    if duty < 100:
+        duty = 100
+    return duty
+
+while True:
+    
+    pwm_en.value(1)
+
+    vin = 1.026*(12490/2490)*3.3*(vin_pin.read_u16()/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
+    vout = 1.026*(12490/2490)*3.3*(vout_pin.read_u16()/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
+    vret = 1*3.3*((vret_pin.read_u16()-350)/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
+    count = count + 1
+    
+    pwm_ref = pid(vret)
+    pwm_ref = int(pwm_ref*65536)
+    pwm_out = saturate(pwm_ref)
+    pwm.duty_u16(pwm_out)
+
+    iout = vret/SHUNT_OHMS
+    vled = vout - vret
+    ledpower = vled * iout
+    
+    if count > 1000:
+        print("Vin = {:.3f}".format(vin))
+        print("Vout = {:.3f}".format(vout))
+        print("Vret = {:.3f}".format(vret))
+        print("Duty = {:.0f}".format(pwm_out))
+        print("iout = {:.3f}".format(iout))
+        print("ledpower = {:.3f}".format(ledpower))
+        #print("setpoint = {:.3f}".format(setpoint))
+
+        count = 0
+        #setpoint = setpoint + delta
+                
+        if ledpower > 0.75:
+            setpoint = 0.75 / iout
+            setpoint = setpoint - delta
+        
+        if ledpower < 0.6:
+            setpoint = 0.6 / iout
+            setpoint = setpoint + delta
+            
+        #pid.setpoint = setpoint
