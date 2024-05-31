@@ -220,14 +220,14 @@ def trading_strategy(current_day, current_tick, current_buy_price, current_sell_
         prev_sell_price = last_4_sell_prices[0] if last_4_sell_prices else 0
         prev_buy_price = last_4_buy_prices[0] if last_4_buy_prices else 0
         
-        if current_sell_price > prev_sell_price * 1.15:
-            if current_sell_price > avg_sell_price * 1.45:
+        if current_buy_price > prev_buy_price * 1.15:
+            if current_buy_price > avg_buy_price * 1.45:
                 decision = "SELL"
             else:
                 decision = "HOLD"
-        elif current_sell_price < prev_sell_price and current_sell_price > avg_sell_price * 1.5:
+        elif current_buy_price < prev_buy_price and current_buy_price > avg_buy_price * 1.5:
             decision = "SELL"
-        elif current_buy_price < avg_buy_price * 0.85 and current_buy_price < prev_buy_price * 0.85:
+        elif current_sell_price < avg_sell_price * 0.85 and current_sell_price < prev_sell_price * 0.85:
             decision = "BUY"
         else:
             decision = "HOLD"
