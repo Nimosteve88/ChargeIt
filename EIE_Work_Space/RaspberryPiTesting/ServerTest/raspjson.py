@@ -19,6 +19,7 @@ if response.status_code == 200:
     data = response.json()
     energydata = energyresponse.json()
     print('Data from Flask server:', data)
+    print('Energy data from Flask server:', energydata)
 
     # Modify the JSON data by incrementing the 'power_flywheel' and 'power_extracted' values by 0.1, round them to 1 decimal place
     data['power_flywheel'] = str(round(float(data['power_flywheel']) + 0.1, 1))

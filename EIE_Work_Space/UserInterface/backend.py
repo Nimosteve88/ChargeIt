@@ -157,9 +157,11 @@ def update_deferables_data(deferables_data, day, tick):
     finally:
         session.close()
 
-def calculate_cumulative_average(df, column):
-    df[f'cumulative_avg_{column}'] = df[column].expanding().mean()
-    return df[f'cumulative_avg_{column}'].tolist()
+# def calculate_cumulative_average(df, column):
+#     df[f'cumulative_avg_{column}'] = df[column].expanding().mean()
+#     return df[f'cumulative_avg_{column}'].tolist()
+def calculate_cumulative_average(df, column, window=10):
+    return df[column].rolling(window=window, min_periods=1).mean().tolist()
 
 def update_yesterday_data(yesterday_data):
     session = Session()
@@ -408,8 +410,7 @@ def alldata():
         df = pd.DataFrame(rows, columns=['tick', 'buy_price', 'sell_price', 'day', 'timestamp'])
 
         # Ensure all ticks are present
-        all_ticks = pd.DataFrame({'tick': range(df['tick'].min(), df['tick'].max() + 1)})
-        df = all_ticks.merge(df, on='tick', how='left').ffill()
+     
 
         cumulative_buy_avg = calculate_cumulative_average(df, 'buy_price')
         cumulative_sell_avg = calculate_cumulative_average(df, 'sell_price')
@@ -419,11 +420,11 @@ def alldata():
 
         data = {
             "ticks": df['tick'].tolist(),
-            "buy_prices": df['buy_price'].tolist(),
+            #"buy_prices": df['buy_price'].tolist(),
             "cumulative_buy_avg": cumulative_buy_avg,
-            "cumulative_sell_avg": cumulative_sell_avg,
-            "avg_buy_price_per_tick": avg_buy_price_per_tick,
-            "sell_prices": df['sell_price'].tolist()
+            "cumulative_sell_avg": cumulative_sell_avg
+            #"avg_buy_price_per_tick": avg_buy_price_per_tick,
+            #"sell_prices": df['sell_price'].tolist()
         }
         return jsonify(data)
     finally:
@@ -497,6 +498,11 @@ def get_energy_data():
         'power_flywheel': power['power_flywheel'],
         'power_extracted': power['power_extracted']
     }
+    return jsonify(data)
+
+@app.route('/deferables', methods=['GET'])
+def get_deferables_data():
+    data = fetch_data(urls["deferables"])
     return jsonify(data)
 
 
