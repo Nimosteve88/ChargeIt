@@ -92,30 +92,6 @@ urls = {
     "deferables": "https://icelec50015.azurewebsites.net/deferables",
     "yesterday": "https://icelec50015.azurewebsites.net/yesterday"
 }
-demandraspberrypi = None
-
-def send_message_to_client(message, client_address, client_port):
-    # Create a socket object
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        # Send the message but consider the message type
-        if isinstance(message, str):
-            msg = message.encode()
-        elif isinstance(message, float) or isinstance(message, int):
-            msg = str(message).encode()
-        elif isinstance(message, dict):
-            msg = json.dumps(message).encode()
-        else:
-            print("Invalid message type. Please provide a string, float, integer or dictionary.")
-            return
-        # Send the message to the client
-        s.sendto(msg, (client_address, client_port))
-        print(f"Message sent to {client_address}:{client_port}")
-    except Exception as e:
-        print(f"Error in send_message_to_client: {e}")
-    finally:
-        # Close the socket
-        s.close()
 
 
 def fetch_data(url):
@@ -157,9 +133,6 @@ def update_deferables_data(deferables_data, day, tick):
     finally:
         session.close()
 
-# def calculate_cumulative_average(df, column):
-#     df[f'cumulative_avg_{column}'] = df[column].expanding().mean()
-#     return df[f'cumulative_avg_{column}'].tolist()
 def calculate_cumulative_average(df, column, window=10):
     return df[column].rolling(window=window, min_periods=1).mean().tolist()
 
@@ -308,36 +281,6 @@ def continuously_fetch_data():
             last_tick = current_tick  # Update the last_tick after processing
 
 
-def run_udp_server():
-
-    server_port = 12000
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    server_socket.bind(('', server_port))
-    print('UDP Server running on port', server_port)
-
-    client_addresses = set()
-
-    while True:
-        data, client_address = server_socket.recvfrom(2048)
-        data = data.decode()
-        if len(data) > 0:
-            print("Message from Client at", client_address, ":", data)
-            #check if data is equal to 'demand'
-            # if data == 'demand':
-            #     print("Demand data received from Raspberry Pi")
-            #     global demandraspberrypi
-            #     demandraspberrypi = client_address
-            # Send confirmation back to the client that sent the message
-            confirmation_message = "Message received! "
-            server_socket.sendto(confirmation_message.encode(), client_address)
-
-        # Store the client's address
-        client_addresses.add(client_address)
-        # Send the received message to all other clients
-        for addr in client_addresses:
-            if addr != client_address:
-                server_socket.sendto(data.encode(), addr)
 
 @app.route('/')
 def index():
@@ -510,8 +453,5 @@ def get_deferables_data():
 if __name__ == "__main__":
     fetch_thread = threading.Thread(target=continuously_fetch_data)
     fetch_thread.start()
-    
-    # udp_thread = threading.Thread(target=run_udp_server)2
-    # udp_thread.start()
     
     app.run(debug=True, host='0.0.0.0', port=5000)
