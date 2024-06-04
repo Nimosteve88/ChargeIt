@@ -54,7 +54,22 @@
 
     <div class="dashboard1">
         <h2 class="dashboard-title">Energy Data</h2>
+        <div class="energy-data-container">
+            <div class="energy-info-box" id="energy-reserve">
+                <div class="energy-info-title">Energy Reserve</div>
+                <div class="energy-info-value">-</div>
+            </div>
+            <div class="energy-info-box" id="power-extracted">
+                <div class="energy-info-title">Power Extracted</div>
+                <div class="energy-info-value">-</div>
+            </div>
+            <div class="energy-info-box" id="power-flywheel">
+                <div class="energy-info-title">Power Flywheel</div>
+                <div class="energy-info-value">-</div>
+            </div>
+        </div>
     </div>
+    
 
     <div class="dashboard1">
         <h2 class="dashboard-title">Overall Data Trend</h2>
@@ -235,6 +250,33 @@
         }
 
         setInterval(updateChart, 3500);
+    </script>
+    <script>
+        function updateEnergyInfoBox(id, newValue) {
+        var element = document.getElementById(id).querySelector('.energy-info-value');
+        if (element.textContent !== newValue) {
+            element.textContent = newValue;
+            element.classList.add('updated');
+            setTimeout(() => {
+                element.classList.remove('updated');
+            }, 500);
+        }
+    }
+
+        // Function to fetch and update energy data
+        function fetchEnergyData() {
+            fetch('/energy-data')
+                .then(response => response.json())
+                .then(data => {
+                    updateEnergyInfoBox('energy-reserve', data.energy_reserve || '-');
+                    updateEnergyInfoBox('power-extracted', data.power_extracted || '-');
+                    updateEnergyInfoBox('power-flywheel', data.power_flywheel || '-');
+                });
+        }
+        
+        // Fetch energy data every 5 seconds
+        setInterval(fetchEnergyData, 5000);
+
     </script>
 </body>
 </html>

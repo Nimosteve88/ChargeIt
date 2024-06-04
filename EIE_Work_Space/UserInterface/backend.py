@@ -20,10 +20,24 @@ engine = create_engine(DATABASE_URI)
 Session = sessionmaker(bind=engine)
 session = Session()
 Base = declarative_base()
-dataset = {
+
+power = {
     'power_flywheel': '5.5',
     'power_extracted': '6.6'
 }
+
+demand = {
+    'demand': '0'
+}
+
+sunintensity = {
+    'sun': '0'
+}
+
+energy = {
+    'energy_reserve': '80'
+}
+
 
 # Define table structures
 class PriceData(Base):
@@ -268,15 +282,16 @@ def continuously_fetch_data():
             
             day = price_data_extracted.get('day', 'N/A')
             tick = price_data_extracted.get('tick', 'N/A')
-            demand = demand_data_extracted.get('demand', 'N/A')
+            demanddata = demand_data_extracted.get('demand', 'N/A')
 
             if tick == 1:
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
-            # global demandraspberrypi
-            # if demandraspberrypi is not None:
-            #     print(f"Sending demand to {demandraspberrypi[0]}:{demandraspberrypi[1]}")
-            #     send_message_to_client( demand, demandraspberrypi[0], demandraspberrypi[1])
+            
+            #update demand dictionary
+            global demand, sunintensity
+            demand['demand'] = str(demanddata)
+            sunintensity['sun'] = str(sun_data_extracted.get('sun'))
             
             current_buy_price = price_data_extracted.get('buy_price', None)
             trading_strategy(day, tick, current_buy_price, price_data_extracted.get('sell_price'))
@@ -422,25 +437,75 @@ def get_decision():
 
 @app.route('/power', methods=['GET', 'POST'])
 def get_deferables():
-    global dataset
+    global power
     if request.method == 'GET':
-        # Return the current dataset
-        return jsonify(dataset)
+        # Return the current power
+        return jsonify(power)
     elif request.method == 'POST':
-        # Update the dataset with the new data from the request
+        # Update the power with the new data from the request
         data = request.json
         if 'power_flywheel' in data:
-            dataset['power_flywheel'] = data['power_flywheel']
+            power['power_flywheel'] = data['power_flywheel']
         if 'power_extracted' in data:
-            dataset['power_extracted'] = data['power_extracted']
-        return jsonify({'message': 'Data updated', 'data': dataset}), 200
+            power['power_extracted'] = data['power_extracted']
+        return jsonify({'message': 'Data updated', 'data': power}), 200
+    
+@app.route('/demand', methods=['GET', 'POST'])
+def get_demand():
+    global demand
+    if request.method == 'GET':
+        # Return the current demand
+        return jsonify(demand)
+    elif request.method == 'POST':
+        # Update the demand with the new data from the request
+        data = request.json
+        if 'demand' in data:
+            demand['demand'] = data['demand']
+        return jsonify({'message': 'Data updated', 'data': demand}), 200
+    
+@app.route('/sun', methods=['GET', 'POST'])
+def get_sun():
+    global sunintensity
+    if request.method == 'GET':
+        # Return the current sun intensity
+        return jsonify(sunintensity)
+    elif request.method == 'POST':
+        # Update the sun intensity with the new data from the request
+        data = request.json
+        if 'sun' in data:
+            sunintensity['sun'] = data['sun']
+        return jsonify({'message': 'Data updated', 'data': sunintensity}), 200
+
+@app.route('/energy', methods=['GET', 'POST'])
+def get_energy():
+    global energy
+    if request.method == 'GET':
+        # Return the current energy
+        return jsonify(energy)
+    elif request.method == 'POST':
+        # Update the energy with the new data from the request
+        data = request.json
+        if 'energy_reserve' in data:
+            energy['energy_reserve'] = data['energy_reserve']
+        return jsonify({'message': 'Data updated', 'data': energy}), 200
+
+@app.route('/energy-data')
+def get_energy_data():
+    global energy, power
+    data = {
+        'energy_reserve': energy['energy_reserve'],
+        'power_flywheel': power['power_flywheel'],
+        'power_extracted': power['power_extracted']
+    }
+    return jsonify(data)
+
 
 
 if __name__ == "__main__":
     fetch_thread = threading.Thread(target=continuously_fetch_data)
     fetch_thread.start()
     
-    udp_thread = threading.Thread(target=run_udp_server)
-    udp_thread.start()
+    # udp_thread = threading.Thread(target=run_udp_server)2
+    # udp_thread.start()
     
     app.run(debug=True, host='0.0.0.0', port=5000)
