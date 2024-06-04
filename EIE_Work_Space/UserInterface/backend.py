@@ -1,9 +1,9 @@
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 import pandas as pd
 import requests
 import time
 import socket
-import json
+import json, random
 import threading
 from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, select, delete, text
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -20,6 +20,10 @@ engine = create_engine(DATABASE_URI)
 Session = sessionmaker(bind=engine)
 session = Session()
 Base = declarative_base()
+dataset = {
+    'power_flywheel': '5.5',
+    'power_extracted': '6.6'
+}
 
 # Define table structures
 class PriceData(Base):
@@ -220,14 +224,14 @@ def trading_strategy(current_day, current_tick, current_buy_price, current_sell_
         prev_sell_price = last_4_sell_prices[0] if last_4_sell_prices else 0
         prev_buy_price = last_4_buy_prices[0] if last_4_buy_prices else 0
         
-        if current_sell_price > prev_sell_price * 1.15:
-            if current_sell_price > avg_sell_price * 1.45:
+        if current_buy_price > prev_buy_price * 1.15:
+            if current_buy_price > avg_buy_price * 1.45:
                 decision = "SELL"
             else:
                 decision = "HOLD"
-        elif current_sell_price < prev_sell_price and current_sell_price > avg_sell_price * 1.5:
+        elif current_buy_price < prev_buy_price and current_buy_price > avg_buy_price * 1.5:
             decision = "SELL"
-        elif current_buy_price < avg_buy_price * 0.85 and current_buy_price < prev_buy_price * 0.85:
+        elif current_sell_price < avg_sell_price * 0.85 and current_sell_price < prev_sell_price * 0.85:
             decision = "BUY"
         else:
             decision = "HOLD"
@@ -288,22 +292,16 @@ def continuously_fetch_data():
 
 
 def run_udp_server():
-    # Define the server port
-    server_port = 12000
 
-    # Create a UDP socket
+    server_port = 12000
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    # Bind the server to the localhost at port server_port
     server_socket.bind(('', server_port))
-
     print('UDP Server running on port', server_port)
 
-    # Create a set to store client addresses
     client_addresses = set()
 
     while True:
-        # Receive a message from a client and print it
         data, client_address = server_socket.recvfrom(2048)
         data = data.decode()
         if len(data) > 0:
@@ -319,7 +317,6 @@ def run_udp_server():
 
         # Store the client's address
         client_addresses.add(client_address)
-
         # Send the received message to all other clients
         for addr in client_addresses:
             if addr != client_address:
@@ -423,6 +420,21 @@ def get_decision():
     global decision
     return jsonify({'decision': decision})
 
+@app.route('/power', methods=['GET', 'POST'])
+def get_deferables():
+    global dataset
+    if request.method == 'GET':
+        # Return the current dataset
+        return jsonify(dataset)
+    elif request.method == 'POST':
+        # Update the dataset with the new data from the request
+        data = request.json
+        if 'power_flywheel' in data:
+            dataset['power_flywheel'] = data['power_flywheel']
+        if 'power_extracted' in data:
+            dataset['power_extracted'] = data['power_extracted']
+        return jsonify({'message': 'Data updated', 'data': dataset}), 200
+
 
 if __name__ == "__main__":
     fetch_thread = threading.Thread(target=continuously_fetch_data)
@@ -431,4 +443,4 @@ if __name__ == "__main__":
     udp_thread = threading.Thread(target=run_udp_server)
     udp_thread.start()
     
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
