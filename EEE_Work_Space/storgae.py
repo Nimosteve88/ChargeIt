@@ -197,7 +197,7 @@ while True:
         timer_elapsed = 0
         
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
-        if count > 100:
+        if count > 500:
             
             print("Va = {:.3f}".format(va))
             print("Vb = {:.3f}".format(vb))

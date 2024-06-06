@@ -20,10 +20,26 @@ engine = create_engine(DATABASE_URI)
 Session = sessionmaker(bind=engine)
 session = Session()
 Base = declarative_base()
-dataset = {
+
+power = {
     'power_flywheel': '5.5',
     'power_extracted': '6.6'
 }
+
+demand = {
+    'demand': '0'
+}
+
+sunintensity = {
+    'sun': '0'
+}
+
+energy = {
+    'energy_reserve': '80'
+}
+
+balance_reserve = 0.00
+
 
 # Define table structures
 class PriceData(Base):
@@ -78,30 +94,6 @@ urls = {
     "deferables": "https://icelec50015.azurewebsites.net/deferables",
     "yesterday": "https://icelec50015.azurewebsites.net/yesterday"
 }
-demandraspberrypi = None
-
-def send_message_to_client(message, client_address, client_port):
-    # Create a socket object
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        # Send the message but consider the message type
-        if isinstance(message, str):
-            msg = message.encode()
-        elif isinstance(message, float) or isinstance(message, int):
-            msg = str(message).encode()
-        elif isinstance(message, dict):
-            msg = json.dumps(message).encode()
-        else:
-            print("Invalid message type. Please provide a string, float, integer or dictionary.")
-            return
-        # Send the message to the client
-        s.sendto(msg, (client_address, client_port))
-        print(f"Message sent to {client_address}:{client_port}")
-    except Exception as e:
-        print(f"Error in send_message_to_client: {e}")
-    finally:
-        # Close the socket
-        s.close()
 
 
 def fetch_data(url):
@@ -143,9 +135,8 @@ def update_deferables_data(deferables_data, day, tick):
     finally:
         session.close()
 
-def calculate_cumulative_average(df, column):
-    df[f'cumulative_avg_{column}'] = df[column].expanding().mean()
-    return df[f'cumulative_avg_{column}'].tolist()
+def calculate_cumulative_average(df, column, window=10):
+    return df[column].rolling(window=window, min_periods=1).mean().tolist()
 
 def update_yesterday_data(yesterday_data):
     session = Session()
@@ -223,16 +214,19 @@ def trading_strategy(current_day, current_tick, current_buy_price, current_sell_
         
         prev_sell_price = last_4_sell_prices[0] if last_4_sell_prices else 0
         prev_buy_price = last_4_buy_prices[0] if last_4_buy_prices else 0
-        
+        global balance_reserve
         if current_buy_price > prev_buy_price * 1.15:
             if current_buy_price > avg_buy_price * 1.45:
                 decision = "SELL"
+                balance_reserve += float(current_sell_price)
             else:
                 decision = "HOLD"
         elif current_buy_price < prev_buy_price and current_buy_price > avg_buy_price * 1.5:
             decision = "SELL"
+            balance_reserve += float(current_sell_price)
         elif current_sell_price < avg_sell_price * 0.85 and current_sell_price < prev_sell_price * 0.85:
             decision = "BUY"
+            balance_reserve -= float(current_buy_price)
         else:
             decision = "HOLD"
     except Exception as e:
@@ -268,15 +262,16 @@ def continuously_fetch_data():
             
             day = price_data_extracted.get('day', 'N/A')
             tick = price_data_extracted.get('tick', 'N/A')
-            demand = demand_data_extracted.get('demand', 'N/A')
+            demanddata = demand_data_extracted.get('demand', 'N/A')
 
             if tick == 1:
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
-            # global demandraspberrypi
-            # if demandraspberrypi is not None:
-            #     print(f"Sending demand to {demandraspberrypi[0]}:{demandraspberrypi[1]}")
-            #     send_message_to_client( demand, demandraspberrypi[0], demandraspberrypi[1])
+            
+            #update demand dictionary
+            global demand, sunintensity
+            demand['demand'] = str(demanddata)
+            sunintensity['sun'] = str(sun_data_extracted.get('sun'))
             
             current_buy_price = price_data_extracted.get('buy_price', None)
             trading_strategy(day, tick, current_buy_price, price_data_extracted.get('sell_price'))
@@ -291,36 +286,6 @@ def continuously_fetch_data():
             last_tick = current_tick  # Update the last_tick after processing
 
 
-def run_udp_server():
-
-    server_port = 12000
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    server_socket.bind(('', server_port))
-    print('UDP Server running on port', server_port)
-
-    client_addresses = set()
-
-    while True:
-        data, client_address = server_socket.recvfrom(2048)
-        data = data.decode()
-        if len(data) > 0:
-            print("Message from Client at", client_address, ":", data)
-            #check if data is equal to 'demand'
-            # if data == 'demand':
-            #     print("Demand data received from Raspberry Pi")
-            #     global demandraspberrypi
-            #     demandraspberrypi = client_address
-            # Send confirmation back to the client that sent the message
-            confirmation_message = "Message received! "
-            server_socket.sendto(confirmation_message.encode(), client_address)
-
-        # Store the client's address
-        client_addresses.add(client_address)
-        # Send the received message to all other clients
-        for addr in client_addresses:
-            if addr != client_address:
-                server_socket.sendto(data.encode(), addr)
 
 @app.route('/')
 def index():
@@ -393,8 +358,7 @@ def alldata():
         df = pd.DataFrame(rows, columns=['tick', 'buy_price', 'sell_price', 'day', 'timestamp'])
 
         # Ensure all ticks are present
-        all_ticks = pd.DataFrame({'tick': range(df['tick'].min(), df['tick'].max() + 1)})
-        df = all_ticks.merge(df, on='tick', how='left').ffill()
+     
 
         cumulative_buy_avg = calculate_cumulative_average(df, 'buy_price')
         cumulative_sell_avg = calculate_cumulative_average(df, 'sell_price')
@@ -404,11 +368,11 @@ def alldata():
 
         data = {
             "ticks": df['tick'].tolist(),
-            "buy_prices": df['buy_price'].tolist(),
+            #"buy_prices": df['buy_price'].tolist(),
             "cumulative_buy_avg": cumulative_buy_avg,
-            "cumulative_sell_avg": cumulative_sell_avg,
-            "avg_buy_price_per_tick": avg_buy_price_per_tick,
-            "sell_prices": df['sell_price'].tolist()
+            "cumulative_sell_avg": cumulative_sell_avg
+            #"avg_buy_price_per_tick": avg_buy_price_per_tick,
+            #"sell_prices": df['sell_price'].tolist()
         }
         return jsonify(data)
     finally:
@@ -422,25 +386,85 @@ def get_decision():
 
 @app.route('/power', methods=['GET', 'POST'])
 def get_deferables():
-    global dataset
+    global power
     if request.method == 'GET':
-        # Return the current dataset
-        return jsonify(dataset)
+        # Return the current power
+        return jsonify(power)
     elif request.method == 'POST':
-        # Update the dataset with the new data from the request
+        # Update the power with the new data from the request
         data = request.json
         if 'power_flywheel' in data:
-            dataset['power_flywheel'] = data['power_flywheel']
+            power['power_flywheel'] = data['power_flywheel']
         if 'power_extracted' in data:
-            dataset['power_extracted'] = data['power_extracted']
-        return jsonify({'message': 'Data updated', 'data': dataset}), 200
+            power['power_extracted'] = data['power_extracted']
+        return jsonify({'message': 'Data updated', 'data': power}), 200
+    
+@app.route('/demand', methods=['GET', 'POST'])
+def get_demand():
+    global demand
+    if request.method == 'GET':
+        # Return the current demand
+        return jsonify(demand)
+    elif request.method == 'POST':
+        # Update the demand with the new data from the request
+        data = request.json
+        if 'demand' in data:
+            demand['demand'] = data['demand']
+        return jsonify({'message': 'Data updated', 'data': demand}), 200
+    
+@app.route('/sun', methods=['GET', 'POST'])
+def get_sun():
+    global sunintensity
+    if request.method == 'GET':
+        # Return the current sun intensity
+        return jsonify(sunintensity)
+    elif request.method == 'POST':
+        # Update the sun intensity with the new data from the request
+        data = request.json
+        if 'sun' in data:
+            sunintensity['sun'] = data['sun']
+        return jsonify({'message': 'Data updated', 'data': sunintensity}), 200
+
+@app.route('/energy', methods=['GET', 'POST'])
+def get_energy():
+    global energy
+    if request.method == 'GET':
+        # Return the current energy
+        return jsonify(energy)
+    elif request.method == 'POST':
+        # Update the energy with the new data from the request
+        data = request.json
+        if 'energy_reserve' in data:
+            energy['energy_reserve'] = data['energy_reserve']
+        return jsonify({'message': 'Data updated', 'data': energy}), 200
+
+@app.route('/energy-data')
+def get_energy_data():
+    global energy, power
+    data = {
+        'energy_reserve': energy['energy_reserve'],
+        'power_flywheel': power['power_flywheel'],
+        'power_extracted': power['power_extracted']
+    }
+    return jsonify(data)
+
+@app.route('/deferables', methods=['GET'])
+def get_deferables_data():
+    data = fetch_data(urls["deferables"])
+    return jsonify(data)
+
+
+@app.route('/balance-data')
+def balance_data():
+    global balance_reserve
+    balance_data = {
+        'balance_reserve': str(balance_reserve)  
+    }
+    return jsonify(balance_data)
 
 
 if __name__ == "__main__":
     fetch_thread = threading.Thread(target=continuously_fetch_data)
     fetch_thread.start()
-    
-    udp_thread = threading.Thread(target=run_udp_server)
-    udp_thread.start()
     
     app.run(debug=True, host='0.0.0.0', port=5000)

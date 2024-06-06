@@ -1,9 +1,9 @@
 import requests
 import json
-
+import time
 # Replace with the IP address of the machine running the Flask app
-url = 'http://127.0.0.1:5000/power'
-
+url = 'http://192.168.194.92:5000/power'
+starttime = time.time()
 # Send GET request to Flask app
 response = requests.get(url)
 
@@ -24,7 +24,9 @@ if response.status_code == 200:
     # Optionally, you can send the modified data back to the server or do something else with it
     # For example, sending the modified data back to the server
     response = requests.post(url, json=data)
+    
     if response.status_code == 200:
+        print("Time taken: ", time.time()-starttime)
         print('Data successfully sent to Flask server')
     else:
         print('Failed to send data to Flask server')

@@ -37,9 +37,13 @@ v_pot_index = 0
 
 # Gains etc for the PID controller
 i_ref = 0 # Voltage reference for the CL modes
+v_ref = 0
 i_err = 0 # Voltage error
+v_err = 0
 i_err_int = 0 # Voltage error integral
+v_err_int = 0
 i_pi_out = 0 # Output of the voltage PI controller
+v_pi_out = 0
 kp = 100 # Boost Proportional Gain
 ki = 300 # Boost Integral Gain
 
@@ -160,13 +164,25 @@ while True:
             
         else: # Closed Loop Current Control
                     
-            i_ref = saturate(vpot-1.66, 1.5,-1.5)
-            i_err = i_ref-iL # calculate the error in voltage
-            i_err_int = i_err_int + i_err # add it to the integral error
-            i_err_int = saturate(i_err_int, 10000, -10000) # saturate the integral error
-            i_pi_out = (kp*i_err)+(ki*i_err_int) # Calculate a PI controller output
-            
-            pwm_out = saturate(i_pi_out,max_pwm,min_pwm) # Saturate that PI output
+            # i_ref = saturate(vpot-1.66, 1.5,-1.5)
+            # i_err = i_ref-iL # calculate the error in voltage
+            # i_err_int = i_err_int + i_err # add it to the integral error
+            # i_err_int = saturate(i_err_int, 10000, -10000) # saturate the integral error
+            # i_pi_out = (kp*i_err)+(ki*i_err_int) # Calculate a PI controller output
+            # pwm_out = saturate(i_pi_out,max_pwm,min_pwm) # Saturate that PI output
+            # duty = int(65536-pwm_out) # Invert because reasons
+            # pwm.duty_u16(duty) # Send the output of the PI controller out as PWM
+
+            v_ref = 7
+            v_err = v_ref - vb # calculate the error in voltage
+            v_err_int = v_err_int + v_err # add it to the integral error
+            v_err_int = saturate(v_err_int, 10000, -10000) # saturate the integral error
+            if abs(v_err_int) == 10000:
+                v_err_int = 0
+            v_pi_out = (kp*v_err)+(ki*v_err_int) # Calculate a PI controller output
+
+
+            pwm_out = saturate(v_pi_out,max_pwm,min_pwm) # Saturate that PI output
             duty = int(65536-pwm_out) # Invert because reasons
             pwm.duty_u16(duty) # Send the output of the PI controller out as PWM
             
@@ -177,7 +193,7 @@ while True:
         
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
         if count > 1000:
-            
+            print("--------------------------------")
             print("Va = {:.3f}".format(va))
             print("Vb = {:.3f}".format(vb))
             print("Vpot = {:.3f}".format(vpot))
@@ -187,12 +203,12 @@ while True:
             # print("BU = {:b}".format(BU))
             #print("trip = {:b}".format(trip))
             print("duty = {:d}".format(int(duty/655)))
-            print("i_err = {:.3f}".format(i_err))
+            #print("i_err = {:.3f}".format(i_err))
             #print("i_err_int = {:.3f}".format(i_err_int))
             #print("i_pi_out = {:.3f}".format(i_pi_out))
-            print("i_ref = {:.3f}".format(i_ref))
-            #print("v_err = {:.3f}".format(v_err))
-            #print("v_err_int = {:.3f}".format(v_err_int))
+            #print("i_ref = {:.3f}".format(i_ref))
+            print("v_err = {:.3f}".format(v_err))
+            print("v_err_int = {:.3f}".format(v_err_int))
             #print("v_pi_out = {:.3f}".format(v_pi_out))
             #print(v_pot_filt)
             count = 0
