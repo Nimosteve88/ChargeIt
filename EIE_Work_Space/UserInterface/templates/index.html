@@ -73,16 +73,16 @@
     <div class="energydata" id="section2">
         <h2 class="dashboard-title">Energy Data</h2>
         <div class="energy-data-container">
-            <div class="energy-info-box" id="energy-reserve">
-                <div class="energy-info-title">Energy Reserve</div>
+            <div class="energy-info-box" id="flywheel_energy">
+                <div class="energy-info-title">Energy In Flywheel</div>
                 <div class="energy-info-value">-</div>
             </div>
-            <div class="energy-info-box" id="power-extracted">
-                <div class="energy-info-title">Power Extracted</div>
+            <div class="energy-info-box" id="grid_power">
+                <div class="energy-info-title">Power Through Grid</div>
                 <div class="energy-info-value">-</div>
             </div>
-            <div class="energy-info-box" id="power-flywheel">
-                <div class="energy-info-title">Power Flywheel</div>
+            <div class="energy-info-box" id="pv_power">
+                <div class="energy-info-title">Power Produced By PV</div>
                 <div class="energy-info-value">-</div>
             </div>
         </div>
@@ -307,9 +307,9 @@
         fetch('/energy-data')
             .then(response => response.json())
             .then(data => {
-                updateEnergyInfoBox('energy-reserve', data.energy_reserve || '-');
-                updateEnergyInfoBox('power-extracted', data.power_extracted || '-');
-                updateEnergyInfoBox('power-flywheel', data.power_flywheel || '-');
+                updateEnergyInfoBox('flywheel_energy', data.flywheel_energy || '-');
+                updateEnergyInfoBox('grid_power', data.grid_power || '-');
+                updateEnergyInfoBox('pv_power', data.pv_power || '-');
             });
     }
     

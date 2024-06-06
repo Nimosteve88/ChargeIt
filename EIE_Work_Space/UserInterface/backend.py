@@ -22,8 +22,8 @@ session = Session()
 Base = declarative_base()
 
 power = {
-    'power_flywheel': '5.5',
-    'power_extracted': '6.6'
+    'grid_power': '5.5',
+    'pv_power': '6.6'
 }
 
 demand = {
@@ -35,7 +35,7 @@ sunintensity = {
 }
 
 energy = {
-    'energy_reserve': '80'
+    'flywheel_energy': '80'
 }
 
 balance_reserve = 0.00
@@ -267,7 +267,12 @@ def continuously_fetch_data():
             if tick == 1:
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
-            
+
+            # for deferable in deferables_data:
+            #     if deferable['start'] <= current_tick <= deferable['end']:
+            #         print(deferable['energy'])
+            #         #remove deferable item from the deferables_data database
+
             #update demand dictionary
             global demand, sunintensity
             demand['demand'] = str(demanddata)
@@ -393,10 +398,10 @@ def get_deferables():
     elif request.method == 'POST':
         # Update the power with the new data from the request
         data = request.json
-        if 'power_flywheel' in data:
-            power['power_flywheel'] = data['power_flywheel']
-        if 'power_extracted' in data:
-            power['power_extracted'] = data['power_extracted']
+        if 'grid_power' in data:
+            power['grid_power'] = data['grid_power']
+        if 'pv_power' in data:
+            power['pv_power'] = data['pv_power']
         return jsonify({'message': 'Data updated', 'data': power}), 200
     
 @app.route('/demand', methods=['GET', 'POST'])
@@ -434,17 +439,17 @@ def get_energy():
     elif request.method == 'POST':
         # Update the energy with the new data from the request
         data = request.json
-        if 'energy_reserve' in data:
-            energy['energy_reserve'] = data['energy_reserve']
+        if 'flywheel_energy' in data:
+            energy['flywheel_energy'] = data['flywheel_energy']
         return jsonify({'message': 'Data updated', 'data': energy}), 200
 
 @app.route('/energy-data')
 def get_energy_data():
     global energy, power
     data = {
-        'energy_reserve': energy['energy_reserve'],
-        'power_flywheel': power['power_flywheel'],
-        'power_extracted': power['power_extracted']
+        'flywheel_energy': energy['flywheel_energy'],
+        'grid_power': power['grid_power'],
+        'pv_power': power['pv_power']
     }
     return jsonify(data)
 
