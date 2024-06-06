@@ -59,6 +59,17 @@
         </div>
     </div>
 
+    <div class="balancedata" id="section5">
+        <h2 class="dashboard-title">Balance </h2>
+        <div class="balance-data-container">
+            <div class="balance-info-box" id="balance-reserve">
+                <!-- <div class="balance-info-title">Balance Reserve</div> -->
+                <div class="balance-info-value">-</div>
+            </div>
+        </div>
+    </div>
+   
+
     <div class="energydata" id="section2">
         <h2 class="dashboard-title">Energy Data</h2>
         <div class="energy-data-container">
@@ -192,7 +203,7 @@
     }
 
     // Fetch data and update chart every second
-    setInterval(fetchDataAndUpdateChart, 4500);
+    setInterval(fetchDataAndUpdateChart, 5000);
 
     // Fetch trading decision every 4.7 seconds
     setInterval(fetchDecision, 4700)
@@ -278,7 +289,7 @@
                 priceChart.update();
             });
     }
-    setInterval(updateChart, 2000);
+    setInterval(updateChart, 6000);
 </script>
 <script>
     function updateEnergyInfoBox(id, newValue) {
@@ -326,6 +337,41 @@
     // Call this function every few seconds to keep the data updated
     setInterval(updateDeferablesData, 5000);  // 5000 ms = 5 seconds
 </script>
+
+<script>
+    var previousBalanceValue = 0;
+
+    function updateBalanceInfoBox(id, newValue) {
+        var element = document.getElementById(id).querySelector('.balance-info-value');
+        if (element.textContent !== newValue) {
+            element.textContent = newValue;
+            element.classList.remove('increased', 'decreased');
+            if (newValue > previousBalanceValue) {
+                element.classList.add('increased');
+            } else if (newValue < previousBalanceValue) {
+                element.classList.add('decreased');
+            }
+            previousBalanceValue = newValue;
+            element.classList.add('updated');
+            setTimeout(() => {
+                element.classList.remove('updated');
+            }, 500);
+        }
+    }
+
+    // Function to fetch and update balance data
+    function fetchBalanceData() {
+        fetch('/balance-data')
+            .then(response => response.json())
+            .then(data => {
+                updateBalanceInfoBox('balance-reserve', data.balance_reserve || '-');
+            });
+    }
+
+    // Fetch balance data every 5 seconds
+    setInterval(fetchBalanceData, 1000);
+</script>
+
 
 </body>
 </html>
