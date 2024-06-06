@@ -182,6 +182,8 @@ while True:
         else: # Closed Loop Current Control
                     
             i_ref = saturate(vpot-1.66, 1.5,-1.5)
+            if va > 15.5:
+                i_ref = 0
             i_err = i_ref-iL # calculate the error in voltage
             i_err_int = i_err_int + i_err # add it to the integral error
             i_err_int = saturate(i_err_int, 10000, -10000) # saturate the integral error
