@@ -4,8 +4,8 @@ import utime as time
 from machine import Timer
 
 # Replace with the IP address of the machine running the Flask app
-url = 'http://192.168.194.92:5000/power'
-energyurl = 'http://192.168.194.92:5000/energy'
+url = 'http://192.168.0.105:5000/power'
+energyurl = 'http://192.168.0.105:5000/energy'
 
 # Send GET request to Flask app
 response = requests.get(url)

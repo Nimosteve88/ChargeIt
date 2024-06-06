@@ -5,7 +5,8 @@ import json
 import utime
 import network
 import socket
-
+import math
+import time
 # Set up some pin allocations for the Analogues and switches
 va_pin = ADC(Pin(28))
 vb_pin = ADC(Pin(26))
@@ -23,6 +24,7 @@ min_pwm = 1000
 max_pwm = 64536
 pwm_out = min_pwm
 pwm_ref = 30000
+
 
 # Some error signals
 trip = 0
@@ -48,6 +50,7 @@ i_err_int = 0  # Voltage error integral
 i_pi_out = 0  # Output of the voltage PI controller
 kp = 100  # Boost Proportional Gain
 ki = 300  # Boost Integral Gain
+v_err_int = 0
 
 # Basic signals to control logic flow
 global timer_elapsed
@@ -62,11 +65,23 @@ SHUNT_OHMS = 0.10
 # IC algorithm variables
 Vold = 0
 Pold = 0
-Vref = 7  # initial arbitrary value near MPP
+Iold = 0
+Vref = 4.5  # initial arbitrary value near MPP
 deltaVref = 0.1
+duty_cycle = 15000
+delta = 100
 
+
+#function to reduce the step size to get a more accurate value for the duty cycle
+def reduceStepsize(step_size):
+    if step_size != 1:
+        step_size = 0.5*step_size
+    else:
+        step_size = step_size
+    return step_size
 #function to send to server
 def send_message_to_server(message):
+    start_time = time.time()
     # Define the server name and port client wishes to access
     server_name = '192.168.194.92'   # Replace with current IP Address
     server_port = 12001
@@ -104,7 +119,7 @@ def send_message_to_server(message):
     # Close the socket
     client_socket.close()
     # Print message sent confirmation
-    print("Message has been successfully sent.")
+    print("Message has been successfully sent in", time.time() - start_time, "seconds")
 
 # Saturation function for anything you want saturated within bounds
 def saturate(signal, upper, lower):
@@ -182,90 +197,88 @@ while True:
         vpot = sum(v_pot_filt) / 100  # Actual reading used is the average of the last 100 readings
 
         Vshunt = ina.vshunt()
-        #Vbus = ina.vbus()
-        Vbus = vb
+        Vbus = vb #ina.vbus()
+        #Vbus = vb
         Ipv = Vshunt / SHUNT_OHMS
-        Ppv = Vbus * Ipv
-        
-        CL = OL_CL_pin.value()  # Are we in closed or open loop mode
-        BU = BU_BO_pin.value()  # Are we in buck or boost mode?
+        Ppv = Vbus * -Ipv
 
         # New min and max PWM limits and we use the measured current directly
-        min_pwm = 0
-        max_pwm = 64536
+        min_pwm = 1000
+        max_pwm = 65000
         iL = Vshunt / SHUNT_OHMS
-        pwm_ref = saturate(65536 - int((vpot / 3.3) * 65536), max_pwm, min_pwm)  # convert the pot value to a PWM value for use later
-
+        #pwm_ref = saturate(65536 - int((vpot / 3.3) * 65536), max_pwm, min_pwm)  # convert the pot value to a PWM value for use later
+        
+        
         # Incremental Conductance Algorithm to update Vref
+        #claculate changes
         dV = Vbus - Vold
         dP = Ppv - Pold
+        dI = iL - Iold
+        Iconductance = dI/dV
+        conductance = iL/vb
 
-        if dP != 0:
-            if dP < 0:
-                if dV < 0:
-                    Vref += deltaVref
-                else:
-                    Vref -= deltaVref
+
+        #apply algorithm
+        if dV == 0:
+            if dI == 0:
+                step_size = reduceStepsize(step_size)
+            elif dI > 0:
+                #increse the volatage as MPP os on the left
+                duty_cycle += step_size
             else:
-                if dV < 0:
-                    Vref -= deltaVref
-                else:
-                    Vref += deltaVref
-        #Vref = saturate(Vref, Vbus + 0.1, Vbus - 0.1)  # Limit Vref to a range close to Vbus
-
+                #decrese the volatage as the MPP is on the right
+                duty_cycle -= step_size
+        else:
+            if Iconductance == -conductance:
+                step_size = reduceStepsize(step_size)
+            elif Iconductance > -conductance:
+                #increase the volage as the MPP is on the left
+                duty_cycle += step_size
+            else:
+                #decrease the volage as the MPP is on the right
+                duty_cycle -= step_size
+        
+        #set the values of the previous values
         Vold = Vbus
         Pold = Ppv
+        Iold = iL
 
-        # Closed Loop Control based on Vref
-        if CL == 1:  # Closed Loop mode
-            v_err = Vref - Vbus  # calculate the error in voltage
-            i_err_int += v_err  # add it to the integral error
-            i_err_int = saturate(i_err_int, 10000, -10000)  # saturate the integral error
-            i_pi_out = (kp * v_err) + (ki * i_err_int)  # Calculate a PI controller output
-            
-            pwm_out = saturate(i_pi_out, max_pwm, min_pwm)  # Saturate the PI output
-            duty = int(65536 - pwm_out)  # Invert for hardware requirements
-            pwm.duty_u16(duty)  # Output the PWM
+        #set the new duty to the SMPS
+        duty_cycle = saturate(duty_cycle, pwm_ref, min_pwm)
+        duty = 65356 - duty_cycle
+        pwm.duty_u16(duty)    
+        #add a delay to prevent oscillations
+        utime.sleep_ms(25)
 
-        # Open Loop Mode: Keep previous functionality
-        else:
-            if iL > 2:  # Current limiting function
-                pwm_out -= 10  # if there is too much current, reduce the duty cycle
-                OC = 1  # Set the OC flag
-                pwm_out = saturate(pwm_out, pwm_ref, min_pwm)
-            elif iL < -2:
-                pwm_out += 10  # if the current is too low, increase the duty cycle
-                OC = 1  # Reset the OC flag
-                pwm_out = saturate(pwm_out, max_pwm, pwm_ref)
-            else:
-                pwm_out = pwm_ref
-                OC = 0
-                pwm_out = saturate(pwm_out, pwm_ref, min_pwm)
 
-            duty = 65536 - pwm_out  # Invert the PWM because of other inversions in the hardware
-            pwm.duty_u16(duty)  # Output the PWM
-
-        # Keep a count of how many times we have executed and reset the timer
         count += 1
         timer_elapsed = 0
 
         # This set of prints execute
         Power = va*iL
+        PowerIN = vb*-iL
+
         #Power to be send to the server
-        send_message_to_server(Power)       
+        #send_message_to_server(round(va,3)) 
+             
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
         if count > 100:
+            print("----------------------------------")
             print("Power = {:.3f}".format(Power))
+            print("PowerIn ={:.3f}".format(PowerIN))
             print("Va = {:.3f}".format(va))
             print("Vb = {:.3f}".format(vb))
-            print("Vpot = {:.3f}".format(vpot))
+            #print("Vpot = {:.3f}".format(vpot))
             print("iL = {:.3f}".format(iL))
-            print("OC = {:b}".format(OC))
-            print("CL = {:b}".format(CL))
-            print("BU = {:b}".format(BU))
-            print("duty = {:d}".format(duty))
+            print("Pold = {:.3f}".format(Pold))
+            print("Ppv= {:.3f}".format(Ppv))
+            #print("OC = {:b}".format(OC))
+            #print("CL = {:b}".format(CL))
+            #print("BU = {:b}".format(BU))
+            #print("duty = {:d}".format(duty))
             print("duty% = {:.3f}".format(duty/655.36))
             print("i_err = {:.3f}".format(i_err))
             print("i_ref = {:.3f}".format(i_ref))
+            print("Vref = {:.3f}".format(Vref))
             count = 0
 

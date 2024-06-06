@@ -38,6 +38,8 @@ energy = {
     'energy_reserve': '80'
 }
 
+balance_reserve = 0.00
+
 
 # Define table structures
 class PriceData(Base):
@@ -212,16 +214,19 @@ def trading_strategy(current_day, current_tick, current_buy_price, current_sell_
         
         prev_sell_price = last_4_sell_prices[0] if last_4_sell_prices else 0
         prev_buy_price = last_4_buy_prices[0] if last_4_buy_prices else 0
-        
+        global balance_reserve
         if current_buy_price > prev_buy_price * 1.15:
             if current_buy_price > avg_buy_price * 1.45:
                 decision = "SELL"
+                balance_reserve += float(current_sell_price)
             else:
                 decision = "HOLD"
         elif current_buy_price < prev_buy_price and current_buy_price > avg_buy_price * 1.5:
             decision = "SELL"
+            balance_reserve += float(current_sell_price)
         elif current_sell_price < avg_sell_price * 0.85 and current_sell_price < prev_sell_price * 0.85:
             decision = "BUY"
+            balance_reserve -= float(current_buy_price)
         else:
             decision = "HOLD"
     except Exception as e:
@@ -448,6 +453,14 @@ def get_deferables_data():
     data = fetch_data(urls["deferables"])
     return jsonify(data)
 
+
+@app.route('/balance-data')
+def balance_data():
+    global balance_reserve
+    balance_data = {
+        'balance_reserve': str(balance_reserve)  
+    }
+    return jsonify(balance_data)
 
 
 if __name__ == "__main__":
