@@ -8,7 +8,7 @@ pwm = PWM(Pin(0))
 pwm.freq(100000)
 pwm_en = Pin(1, Pin.OUT)
 
-pid = PID(0.15, 11, 0, setpoint=0.19, scale='ms')
+pid = PID(0.15, 11, 0, setpoint=0.05, scale='ms')
 #pidvout = PID(0.2, 10, 0, setpoint= 3, scale='ms')
 
 count = 0
@@ -71,14 +71,14 @@ while True:
    
 
         
-    if c2 > 9:
-        if elapsedtime < 10000:
-            with open("LED_power.txt", "a") as file:
-                file.write("{:d},{:.3f}\n".format(elapsedtime, ledpower))
-        c2 = 0
-        #print("ben")
+    # if c2 > 9:
+    #     if elapsedtime < 10000:
+    #         with open("LED_power.txt", "a") as file:
+    #             file.write("{:d},{:.3f}\n".format(elapsedtime, ledpower))
+    #     c2 = 0
+    #     #print("ben")
 
-    if count > 100:
+    if count > 1000:
         print("Vin = {:.3f}".format(vin))
         print("Vout = {:.3f}".format(vout))
         print("Vled = {:.3f}".format(vled))

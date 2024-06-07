@@ -52,7 +52,7 @@ pwm = PWM(Pin(0))
 pwm.freq(100000)
 pwm_en = Pin(1, Pin.OUT)
 
-pid = PID(0.15, 11, 0, setpoint=0.19, scale='ms')
+pid = PID(0.15, 11, 0, setpoint=0.25, scale='ms')
 #pidvout = PID(0.2, 10, 0, setpoint= 3, scale='ms')
 
 
@@ -84,19 +84,9 @@ def saturate(duty):
 with open("LED_power.txt", "w") as file:
     file.write("Time (ms), Power (W)\n")
 
-while True:
-    data = None
-    ip = '192.168.194.92'
-    url = 'http:'+ip+':5000/demand'
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-    else:
-        print('Failed to retrieve data from server')
-
-
-    demand = float(data['demand'])
-    pid.setpoint = demand / 5
+while True:        
+    #demand = 2.5
+    #
     
     pwm_en.value(1)
 
@@ -110,6 +100,7 @@ while True:
     
     iout = vret/SHUNT_OHMS
     vled = vout - vret
+    
     ledpower = vled * iout
     
     '''
@@ -130,39 +121,57 @@ while True:
         pwm_out = saturate(pwm_ref)
         pwm.duty_u16(pwm_out)
         
-   
+    
 
-        
+    '''    
     if c2 > 9:
         if elapsedtime < 10000:
             with open("LED_power.txt", "a") as file:
                 file.write("{:d},{:.3f}\n".format(elapsedtime, ledpower))
         c2 = 0
         #print("ben")
+    '''
 
-    if count > 100:
+    
+    if count > 1000:
+        data = None
+        ip = '192.168.194.92'
+        url = 'http://'+ip+':5000/demand'
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+        else:
+            print('Failed to retrieve data from server')
+
+        demand = float(data['demand'])
+
+        pid.setpoint = demand / 5
+
         print("Vin = {:.3f}".format(vin))
         print("Vout = {:.3f}".format(vout))
         print("Vled = {:.3f}".format(vled))
         print("Vret = {:.3f}".format(vret))
         print("Duty = {:.0f}".format(pwm_out))
+        print("pwmref = {:.0f}".format(pwm_ref))
         print("iout = {:.3f}".format(iout))
         print("ledpower = {:.3f}".format(ledpower))
-        print("setpoint = {:.3f}".format(setpoint))
+        print("pidsetpoint = {:.3f}".format(pid.setpoint))
+        print("Demand = {:.3f}".format(demand))
+
         
         
 
         count = 0
         #setpoint = setpoint + delta
                 
-        '''
-        if ledpower - initsetpoint >= 0.01:
-            setpoint = setpoint - delta
+    '''
+    if ledpower - initsetpoint >= 0.01:
+        setpoint = setpoint - delta
+    
+    elif initsetpoint - ledpower>= 0.01:
+        setpoint = setpoint + delta
         
-        elif initsetpoint - ledpower>= 0.01:
-            setpoint = setpoint + delta
-            
-        pid.setpoint = setpoint
-        '''
+    pid.setpoint = setpoint
+    '''
 
 

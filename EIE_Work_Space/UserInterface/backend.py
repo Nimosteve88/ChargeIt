@@ -387,10 +387,10 @@ def data():
         sorted_rows = []
         for day in sorted(data_by_day.keys()):
             sorted_rows.extend(sorted(data_by_day[day], key=lambda x: x['tick']))  # Sort by tick within each day
-        
-        current_demand = session.execute(text("SELECT demand FROM demand_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
+        global demand, sunintensity
+        current_demand = demand['demand']
         current_day = session.execute(text("SELECT day FROM price_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
-        current_sun = session.execute(text("SELECT sun FROM sun_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
+        current_sun = sunintensity['sun']
         
         data = {
             "ticks": [row['tick'] for row in sorted_rows],
