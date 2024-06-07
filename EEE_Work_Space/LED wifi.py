@@ -52,7 +52,7 @@ pwm = PWM(Pin(0))
 pwm.freq(100000)
 pwm_en = Pin(1, Pin.OUT)
 
-pid = PID(0.15, 11, 0, setpoint=0.25, scale='ms')
+pid = PID(0.16, 11, 0, setpoint=0.25, scale='ms')
 #pidvout = PID(0.2, 10, 0, setpoint= 3, scale='ms')
 
 
@@ -133,7 +133,20 @@ while True:
     '''
 
     
-    if count > 1000:
+    if count % 100 == 0:
+        print("Vin = {:.3f}".format(vin))
+        print("Vout = {:.3f}".format(vout))
+        print("Vled = {:.3f}".format(vled))
+        print("Vret = {:.3f}".format(vret))
+        print("Duty = {:.0f}".format(pwm_out))
+        print("pwmref = {:.0f}".format(pwm_ref))
+        print("iout = {:.3f}".format(iout))
+        print("ledpower = {:.3f}".format(ledpower))
+        print("pidsetpoint = {:.3f}".format(pid.setpoint))
+        print("Demand = {:.3f}".format(demand))
+    
+    
+    if count > 500:
         data = None
         ip = '192.168.194.92'
         url = 'http://'+ip+':5000/demand'
@@ -147,16 +160,8 @@ while True:
 
         pid.setpoint = demand / 5
 
-        print("Vin = {:.3f}".format(vin))
-        print("Vout = {:.3f}".format(vout))
-        print("Vled = {:.3f}".format(vled))
-        print("Vret = {:.3f}".format(vret))
-        print("Duty = {:.0f}".format(pwm_out))
-        print("pwmref = {:.0f}".format(pwm_ref))
-        print("iout = {:.3f}".format(iout))
-        print("ledpower = {:.3f}".format(ledpower))
-        print("pidsetpoint = {:.3f}".format(pid.setpoint))
-        print("Demand = {:.3f}".format(demand))
+        
+        
 
         
         
@@ -173,5 +178,7 @@ while True:
         
     pid.setpoint = setpoint
     '''
+
+
 
 
