@@ -1,4 +1,46 @@
 from machine import Pin, I2C, ADC, PWM, Timer
+import urequests as requests 
+import network
+import utime
+
+##########################WIFI CONNECTION##########################
+ssid = 'SteveGalaxy'
+password = 'ChargeIt'
+
+# Set WiFi to station interface
+wlan = network.WLAN(network.STA_IF)
+# Activate the network interface
+wlan.active(True)
+
+# Check if already connected
+if not wlan.isconnected():
+    print('Connecting to network...')
+    wlan.connect(ssid, password)
+
+    max_wait = 10
+    # Wait for connection
+    while max_wait > 0:
+        if wlan.status() < 0 or wlan.status() >= 3:
+            # Connection successful
+            break
+        max_wait -= 1
+        print('Waiting for connection... ' + str(max_wait))
+        utime.sleep(1)
+
+    # Check connection
+    if wlan.status() != 3:
+        # No connection
+        raise RuntimeError('Network connection failed')
+else:
+    print('Already connected to network')
+
+# Connection successful
+print('WLAN connected')
+status = wlan.ifconfig()
+pico_ip = status[0]
+print('IP = ' + status[0])
+
+##########################WIFI CONNECTION##########################
 
 # Set up some pin allocations for the Analogues and switches
 va_pin = ADC(Pin(28))
@@ -34,6 +76,8 @@ v_pot_filt = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
               0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
               0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 v_pot_index = 0
+
+
 
 # Gains etc for the PID controller
 i_ref = 0 # Voltage reference for the CL modes
@@ -117,7 +161,18 @@ while True:
         # This starts a 1kHz timer which we use to control the execution of the control loops and sampling
         loop_timer = Timer(mode=Timer.PERIODIC, freq=1000, callback=tick)
     
-    # If the timer has elapsed it will execute some functions, otherwise it skips everything and repeats until the timer elapses
+        # If the timer has elapsed it will execute some functions, otherwise it skips everything and repeats until the timer elapses
+    data = None
+    ip = '192.168.194.92'
+    url = 'http://'+ip+':5000/sun'
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+    else:
+        print('Failed to retrieve data from server')
+    irradiance = data['sun']
+ 
+    
     if timer_elapsed == 1: # This is executed at 1kHz
         va = 1.017*(12490/2490)*3.3*(va_pin.read_u16()/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
         vb = 1.015*(12490/2490)*3.3*(vb_pin.read_u16()/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
@@ -127,6 +182,7 @@ while True:
         v_pot_index = v_pot_index + 1 # Moves the index of the buffer for next time
         if v_pot_index == 100: # Loops it round if it reaches the end
             v_pot_index = 0
+        
         vpot = sum(v_pot_filt)/100 # Actual reading used is the average of the last 100 readings
         
         Vshunt = ina.vshunt()
