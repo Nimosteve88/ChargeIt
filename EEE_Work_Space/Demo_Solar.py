@@ -162,16 +162,7 @@ while True:
         loop_timer = Timer(mode=Timer.PERIODIC, freq=1000, callback=tick)
     
         # If the timer has elapsed it will execute some functions, otherwise it skips everything and repeats until the timer elapses
-    data = None
-    ip = '192.168.194.92'
-    url = 'http://'+ip+':5000/sun'
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-    else:
-        print('Failed to retrieve data from server')
-    irradiance = data['sun']
- 
+    
     
     if timer_elapsed == 1: # This is executed at 1kHz
         va = 1.017*(12490/2490)*3.3*(va_pin.read_u16()/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
@@ -215,8 +206,9 @@ while True:
             pwm.duty_u16(duty) # now we output the pwm
             
         else: # Closed Loop Current Control
-                    
-            i_ref = saturate(vpot-1.66, 1.5,-1.5)
+            
+            #i_ref = saturate(vpot-1.66, 1.5,-1.5)
+            i_ref = (400/100)*irradiance
             i_err = i_ref-iL # calculate the error in voltage
             i_err_int = i_err_int + i_err # add it to the integral error
             i_err_int = saturate(i_err_int, 10000, -10000) # saturate the integral error
@@ -232,7 +224,18 @@ while True:
         timer_elapsed = 0
         
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
-        if count > 100:
+        if count > 500:
+            data = None
+            ip = '192.168.194.92'
+            url = 'http://'+ip+':5000/sun'
+            response = requests.get(url)
+            if response.status_code == 200:
+                data = response.json()
+            else:
+                print('Failed to retrieve data from server')
+            irradiance = data['sun']
+ 
+        if count % 100 == 0:
             
             print("Va = {:.3f}".format(va))
             print("Vb = {:.3f}".format(vb))
@@ -252,3 +255,4 @@ while True:
             #print("v_pi_out = {:.3f}".format(v_pi_out))
             #print(v_pot_filt)
             count = 0
+        
