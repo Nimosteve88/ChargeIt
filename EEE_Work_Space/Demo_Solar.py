@@ -84,8 +84,9 @@ i_ref = 0 # Voltage reference for the CL modes
 i_err = 0 # Voltage error
 i_err_int = 0 # Voltage error integral
 i_pi_out = 0 # Output of the voltage PI controller
-kp = 100 # Boost Proportional Gain
-ki = 300 # Boost Integral Gain
+irradiance = 0 # initialise irradiance
+kp = 10 # Boost Proportional Gain
+ki = 30 # Boost Integral Gain
 
 # Basic signals to control logic flow
 global timer_elapsed
@@ -208,10 +209,12 @@ while True:
         else: # Closed Loop Current Control
             
             #i_ref = saturate(vpot-1.66, 1.5,-1.5)
-            i_ref = (400/100)*irradiance
+            i_ref = (0.4/100)*irradiance
             i_err = i_ref-iL # calculate the error in voltage
             i_err_int = i_err_int + i_err # add it to the integral error
             i_err_int = saturate(i_err_int, 10000, -10000) # saturate the integral error
+            #if abs(v_err_int) == 10000:
+            #    v_err_int = 0
             i_pi_out = (kp*i_err)+(ki*i_err_int) # Calculate a PI controller output
             
             pwm_out = saturate(i_pi_out,max_pwm,min_pwm) # Saturate that PI output
@@ -233,7 +236,9 @@ while True:
                 data = response.json()
             else:
                 print('Failed to retrieve data from server')
-            irradiance = data['sun']
+            irradiance = float(data['sun'])
+            
+            count = 0
  
         if count % 100 == 0:
             
@@ -244,15 +249,16 @@ while True:
             print("OC = {:b}".format(OC))
             print("CL = {:b}".format(CL))
             print("BU = {:b}".format(BU))
+            print("Irradiance = ", irradiance)
             #print("trip = {:b}".format(trip))
             print("duty = {:d}".format(duty))
             print("i_err = {:.3f}".format(i_err))
-            #print("i_err_int = {:.3f}".format(i_err_int))
-            #print("i_pi_out = {:.3f}".format(i_pi_out))
+            print("i_err_int = {:.3f}".format(i_err_int))
+            print("i_pi_out = {:.3f}".format(i_pi_out))
             print("i_ref = {:.3f}".format(i_ref))
             #print("v_err = {:.3f}".format(v_err))
             #print("v_err_int = {:.3f}".format(v_err_int))
             #print("v_pi_out = {:.3f}".format(v_pi_out))
             #print(v_pot_filt)
-            count = 0
+            
         
