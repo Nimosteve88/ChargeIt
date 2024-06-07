@@ -35,7 +35,7 @@ sunintensity = {
 }
 
 energy = {
-    'flywheel_energy': '80'
+    'flywheel_energy': '60'
 }
 
 balance_reserve = 0.00
@@ -190,6 +190,65 @@ def fetch_last_n_buy_prices_yesterday(n):
         session.close()
     return result
 
+def calculate_moving_average(prices, window):
+    if len(prices) < window:
+        return sum(prices) / len(prices)  # Return average if not enough data points
+    return sum(prices[-window:]) / window
+
+
+def trading_strategy2(buy_price, sell_price):
+    global power, demand, energy, balance_reserve, decision
+
+    # Query the past buy and sell prices
+    session = Session()
+    past_prices = session.query(PriceData).order_by(PriceData.id.desc()).limit(60).all()
+    session.close()
+
+    # Extract buy and sell prices
+    past_buy_prices = [price.buy_price for price in past_prices]
+    past_sell_prices = [price.sell_price for price in past_prices]
+
+    # Calculate moving averages
+    window = 10  # For example, a 10-tick window
+    buy_price_ma = calculate_moving_average(past_buy_prices, window)
+    sell_price_ma = calculate_moving_average(past_sell_prices, window)
+
+    # Calculate remaining power
+    remaining_power = float(power['pv_power']) - float(demand['demand'])
+
+    # Check if remaining power is less than 0
+    if remaining_power < 0:
+        # Check if flywheel is empty
+        if float(energy['flywheel_energy']) <= 0.1:
+            # Buy remaining power from grid if the current buy price is below the moving average
+            if buy_price < buy_price_ma:
+                decision = 'BUY'
+                balance_reserve -= buy_price
+        else:
+            # Discharge remaining power from flywheel
+            energy['flywheel_energy'] = str(float(energy['flywheel_energy']) + remaining_power)
+            # Check if flywheel is empty and remaining power is still less than 0
+            if float(energy['flywheel_energy']) <= 0.1 and remaining_power < 0:
+                if buy_price < buy_price_ma:
+                    decision = 'BUY'
+                    balance_reserve -= buy_price
+    else:
+        # Check if flywheel is full
+        if float(energy['flywheel_energy']) >= 60.0:
+            # Sell remaining power to grid if the current sell price is above the moving average
+            if sell_price > sell_price_ma:
+                decision = 'SELL'
+                balance_reserve += sell_price
+        else:
+            # Charge flywheel with remaining power
+            energy['flywheel_energy'] = str(float(energy['flywheel_energy']) + remaining_power)
+            # Check if flywheel is full and there is still remaining power
+            if float(energy['flywheel_energy']) >= 60.0 and remaining_power > 0:
+                if sell_price > sell_price_ma:
+                    decision = 'SELL'
+                    balance_reserve += sell_price
+
+
 def trading_strategy(current_day, current_tick, current_buy_price, current_sell_price):
     global decision
     try:
@@ -279,7 +338,9 @@ def continuously_fetch_data():
             sunintensity['sun'] = str(sun_data_extracted.get('sun'))
             
             current_buy_price = price_data_extracted.get('buy_price', None)
-            trading_strategy(day, tick, current_buy_price, price_data_extracted.get('sell_price'))
+            current_sell_price = price_data_extracted.get('sell_price', None)
+            trading_strategy(day, tick, current_buy_price, current_sell_price)
+            #trading_strategy2(current_buy_price, current_sell_price)
 
             # print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
             # print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
