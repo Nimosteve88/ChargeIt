@@ -40,6 +40,19 @@ status = wlan.ifconfig()
 pico_ip = status[0]
 print('IP = ' + status[0])
 
+
+irradiance = 0 # initialise irradiance
+
+data = None
+ip = '192.168.194.92'
+url = 'http://'+ip+':5000/sun'
+response = requests.get(url)
+if response.status_code == 200:
+    data = response.json()
+    irradiance = float(data['sun'])
+else:
+    print('Failed to retrieve data from server')
+
 ##########################WIFI CONNECTION##########################
 
 # Set up some pin allocations for the Analogues and switches
@@ -84,7 +97,6 @@ i_ref = 0 # Voltage reference for the CL modes
 i_err = 0 # Voltage error
 i_err_int = 0 # Voltage error integral
 i_pi_out = 0 # Output of the voltage PI controller
-irradiance = 0 # initialise irradiance
 kp = 10 # Boost Proportional Gain
 ki = 30 # Boost Integral Gain
 
@@ -149,6 +161,7 @@ class ina219:
         #ina_i2c.writeto_mem(conf.address, conf.REG_CONFIG, b'\x09\x9F') # PG = /2
         ina_i2c.writeto_mem(conf.address, conf.REG_CONFIG, b'\x19\x9F') # PG = /8
         ina_i2c.writeto_mem(conf.address, conf.REG_CALIBRATION, b'\x00\x00')
+
 
 
 # Here we go, main function, always executes
@@ -228,15 +241,13 @@ while True:
         
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
         if count > 500:
-            data = None
-            ip = '192.168.194.92'
-            url = 'http://'+ip+':5000/sun'
             response = requests.get(url)
             if response.status_code == 200:
                 data = response.json()
+                irradiance = float(data['sun'])
             else:
                 print('Failed to retrieve data from server')
-            irradiance = float(data['sun'])
+            
             
             count = 0
  
