@@ -248,48 +248,94 @@ def trading_strategy2(buy_price, sell_price):
                     decision = 'SELL'
                     balance_reserve += sell_price
 
+def discharge_flywheel(amount):
+    # add logic to discharge flywheel/capacitor
+    energy['flywheel_energy'] = str(float(energy['flywheel_energy']) - amount)
+    pass
+def charge_flywheel(amount):
+    # add logic to charge flywheel/capacitor
+    energy['flywheel_energy'] = str(float(energy['flywheel_energy']) + amount)
+    pass
+indicator = 0
+def demand_strategy(sell_price, buy_price): # swapped when putting in parameters as grid BUYS AT SELL PRICE and SELLS AT BUY PRICE
+    global power, demand, energy, balance_reserve, decision, indicator
+    rem_pwr = float(power['pv_power']) - float(demand['demand'])
+    if rem_pwr < 0: # if demand CANNOT be satisfied by power from PV
+        if float(energy['flywheel_energy']) <= 0.3:
+            decision = "BUY"
+            balance_reserve -= buy_price
+            indicator = 1
+        else:
+            if abs(rem_pwr) > float(energy['flywheel_energy']):
+                discharge_flywheel(float(energy['flywheel_energy']))
+                decision = "BUY"
+                balance_reserve -= buy_price
+                indicator = 1
+                # if absolute value of remaining power is more than reserves
+                # discharge then buy remaining
+            else: # if remaining power is equal to reserves or less than reserves
+                discharge_flywheel(rem_pwr)
+    else: # if demand CAN be satisfied by power from pv
+        if float(energy['flywheel_energy']) >= 60.0:
+            decision = "SELL"
+            balance_reserve += sell_price
+            indicator = 1
+        else:
+            difference = 60.0 - float(energy['flywheel_energy'])
+            if abs(rem_pwr) > difference:
+                charge_flywheel(difference)
+                decision = "SELL"
+                balance_reserve += sell_price
+                indicator = 1
+            else:
+                charge_flywheel(abs(rem_pwr))
+            # if absolute value of remaining power is more than energy needed
+            # to fully charge flywheel, charge then sell
 
 def trading_strategy(current_day, current_tick, current_buy_price, current_sell_price):
-    global decision
-    try:
-        # Fetch the last 4 sell prices
-        last_4_sell_prices = fetch_last_n_sell_prices(current_day, current_tick, 4)
-        # Fetch the last 4 buy prices
-        last_4_buy_prices = fetch_last_n_buy_prices(current_day, current_tick, 4)
-        
-        if len(last_4_sell_prices) < 4:
-            remaining_needed = 4 - len(last_4_sell_prices)
-            last_4_sell_prices += fetch_last_n_sell_prices_yesterday(remaining_needed)
-        
-        if len(last_4_buy_prices) < 4:
-            remaining_needed = 4 - len(last_4_buy_prices)
-            last_4_buy_prices += fetch_last_n_buy_prices_yesterday(remaining_needed)
-        
-        all_sell_prices = last_4_sell_prices + [current_sell_price]
-        all_buy_prices = last_4_buy_prices + [current_buy_price]
-        
-        avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
-        avg_buy_price = sum(all_buy_prices) / len(all_buy_prices)
-        
-        prev_sell_price = last_4_sell_prices[0] if last_4_sell_prices else 0
-        prev_buy_price = last_4_buy_prices[0] if last_4_buy_prices else 0
-        global balance_reserve
-        if current_buy_price > prev_buy_price * 1.15:
-            if current_buy_price > avg_buy_price * 1.45:
+    global decision, indicator
+    if indicator:
+        indicator = 0
+    else:
+        try:
+            # Fetch the last 4 sell prices
+            last_4_sell_prices = fetch_last_n_sell_prices(current_day, current_tick, 4)
+            # Fetch the last 4 buy prices
+            last_4_buy_prices = fetch_last_n_buy_prices(current_day, current_tick, 4)
+            
+            if len(last_4_sell_prices) < 4:
+                remaining_needed = 4 - len(last_4_sell_prices)
+                last_4_sell_prices += fetch_last_n_sell_prices_yesterday(remaining_needed)
+            
+            if len(last_4_buy_prices) < 4:
+                remaining_needed = 4 - len(last_4_buy_prices)
+                last_4_buy_prices += fetch_last_n_buy_prices_yesterday(remaining_needed)
+            
+            all_sell_prices = last_4_sell_prices + [current_sell_price]
+            all_buy_prices = last_4_buy_prices + [current_buy_price]
+            
+            avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
+            avg_buy_price = sum(all_buy_prices) / len(all_buy_prices)
+            
+            prev_sell_price = last_4_sell_prices[0] if last_4_sell_prices else 0
+            prev_buy_price = last_4_buy_prices[0] if last_4_buy_prices else 0
+            global balance_reserve
+            if current_buy_price > prev_buy_price * 1.15:
+                if current_buy_price > avg_buy_price * 1.45:
+                    decision = "SELL"
+                    balance_reserve += float(current_sell_price)
+                else:
+                    decision = "HOLD"
+            elif current_buy_price < prev_buy_price and current_buy_price > avg_buy_price * 1.5:
                 decision = "SELL"
                 balance_reserve += float(current_sell_price)
+            elif current_sell_price < avg_sell_price * 0.85 and current_sell_price < prev_sell_price * 0.85:
+                decision = "BUY"
+                balance_reserve -= float(current_buy_price)
             else:
                 decision = "HOLD"
-        elif current_buy_price < prev_buy_price and current_buy_price > avg_buy_price * 1.5:
-            decision = "SELL"
-            balance_reserve += float(current_sell_price)
-        elif current_sell_price < avg_sell_price * 0.85 and current_sell_price < prev_sell_price * 0.85:
-            decision = "BUY"
-            balance_reserve -= float(current_buy_price)
-        else:
-            decision = "HOLD"
-    except Exception as e:
-        print(f"Error in trading_strategy: {e}")
+        except Exception as e:
+            print(f"Error in trading_strategy: {e}")
 
 def continuously_fetch_data():
     last_tick = None  # Initialize the last_tick variable
@@ -339,6 +385,7 @@ def continuously_fetch_data():
             
             current_buy_price = price_data_extracted.get('buy_price', None)
             current_sell_price = price_data_extracted.get('sell_price', None)
+            demand_strategy(current_buy_price, current_sell_price)
             trading_strategy(day, tick, current_buy_price, current_sell_price)
             #trading_strategy2(current_buy_price, current_sell_price)
 
