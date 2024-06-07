@@ -23,11 +23,11 @@ Base = declarative_base()
 
 power = {
     'grid_power': '5.5',
-    'pv_power': '6.6'
+    'pv_power': '3.4'
 }
 
 demand = {
-    'demand': '0'
+    'demand': '2.2'
 }
 
 sunintensity = {
@@ -35,7 +35,7 @@ sunintensity = {
 }
 
 energy = {
-    'flywheel_energy': '60'
+    'flywheel_energy': '6.0'
 }
 
 balance_reserve = 0.00
@@ -259,7 +259,7 @@ def charge_flywheel(amount):
 indicator = 0
 def demand_strategy(sell_price, buy_price): # swapped when putting in parameters as grid BUYS AT SELL PRICE and SELLS AT BUY PRICE
     global power, demand, energy, balance_reserve, decision, indicator
-    rem_pwr = float(power['pv_power']) - float(demand['demand'])
+    rem_pwr =  float(demand['demand']) - float(power['pv_power']) 
     if rem_pwr < 0: # if demand CANNOT be satisfied by power from PV
         if float(energy['flywheel_energy']) <= 0.3:
             decision = "BUY"
@@ -276,16 +276,16 @@ def demand_strategy(sell_price, buy_price): # swapped when putting in parameters
             else: # if remaining power is equal to reserves or less than reserves
                 discharge_flywheel(rem_pwr)
     else: # if demand CAN be satisfied by power from pv
-        if float(energy['flywheel_energy']) >= 60.0:
+        if float(energy['flywheel_energy']) >= 8.0:
             decision = "SELL"
             balance_reserve += sell_price
             indicator = 1
         else:
-            difference = 60.0 - float(energy['flywheel_energy'])
+            difference = 8.0 - float(energy['flywheel_energy'])
             if abs(rem_pwr) > difference:
                 charge_flywheel(difference)
                 decision = "SELL"
-                balance_reserve += sell_price
+                balance_reserve += (sell_price * (abs(rem_pwr) - difference))
                 indicator = 1
             else:
                 charge_flywheel(abs(rem_pwr))
