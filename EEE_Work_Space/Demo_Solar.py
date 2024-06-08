@@ -226,8 +226,8 @@ while True:
             i_err = i_ref-iL # calculate the error in voltage
             i_err_int = i_err_int + i_err # add it to the integral error
             i_err_int = saturate(i_err_int, 10000, -10000) # saturate the integral error
-            #if abs(v_err_int) == 10000:
-            #    v_err_int = 0
+            if abs(i_err_int) == 10000:
+                i_err_int = 0
             i_pi_out = (kp*i_err)+(ki*i_err_int) # Calculate a PI controller output
             
             pwm_out = saturate(i_pi_out,max_pwm,min_pwm) # Saturate that PI output
