@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real-time Updates</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
+    <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            var socket = io();
+
+            socket.on('connect', function() {
+                console.log('Connected to server');
+            });
+
+            socket.on('update_data', function(data) {
+                console.log('Data received:', data);
+                document.getElementById('data').textContent = JSON.stringify(data);
+            });
+        });
+    </script>
+</head>
+<body>
+    <h1>Real-time Data</h1>
+    <pre id="data">No data yet</pre>
+</body>
+</html>
