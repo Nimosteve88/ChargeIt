@@ -13,7 +13,7 @@ wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
 
 # Check if already connected
-while not wlan.isconnected():
+if not wlan.isconnected():
     print('Connecting to network...')
     wlan.connect(ssid, password)
 
@@ -28,13 +28,11 @@ while not wlan.isconnected():
         utime.sleep(1)
 
     # Check connection
-    #if wlan.status() != 3:
+    if wlan.status() != 3:
         # No connection
-        #raise RuntimeError('Network connection failed')
-        #continue
-#else:
- #   print('Already connected to network')
-
+        raise RuntimeError('Network connection failed')
+else:
+    print('Already connected to network')
 
 # Connection successful
 print('WLAN connected')
@@ -45,15 +43,15 @@ print('IP = ' + status[0])
 
 irradiance = 0 # initialise irradiance
 
-data = None
-ip = '192.168.217.92'
-url = 'https://icelec50015.azurewebsites.net/sun'
-response = requests.get(url)
-if response.status_code == 200:
-    data = response.json()
-    irradiance = float(data['sun'])
-else:
-    print('Failed to retrieve data from server')
+# data = None
+# ip = '192.168.194.92'
+# url = 'http://'+ip+':5000/sun'
+# response = requests.get(url)
+# if response.status_code == 200:
+#     data = response.json()
+#     irradiance = float(data['sun'])
+# else:
+#     print('Failed to retrieve data from server')
 
 ##########################WIFI CONNECTION##########################
 
@@ -99,8 +97,8 @@ i_ref = 0 # Voltage reference for the CL modes
 i_err = 0 # Voltage error
 i_err_int = 0 # Voltage error integral
 i_pi_out = 0 # Output of the voltage PI controller
-kp = 10 # Boost Proportional Gain
-ki = 30 # Boost Integral Gain
+kp = 100 # Boost Proportional Gain
+ki = 300 # Boost Integral Gain
 
 # Basic signals to control logic flow
 global timer_elapsed
@@ -201,8 +199,6 @@ while True:
         max_pwm = 64536
         iL = Vshunt/SHUNT_OHMS
         pwm_ref = saturate(65536-(int((vpot/3.3)*65536)),max_pwm,min_pwm) # convert the pot value to a PWM value for use later
-        max_power = 4.6
-        max_current = max_power / vb
               
         if CL != 1: # Buck-OL Open loop so just limit the current but otherwise pass through the reference directly as a duty cycle
             i_err_int = 0 #reset integrator
@@ -225,8 +221,8 @@ while True:
             
         else: # Closed Loop Current Control
             
-            #i_ref = saturate(vpot-1.66, 1.5,-1.5)
-            i_ref = (max_current/100)*irradiance
+            i_ref = saturate(vpot-1.66, 1.5,-1.5)
+            #i_ref = (0.4/100)*irradiance
             i_err = i_ref-iL # calculate the error in voltage
             i_err_int = i_err_int + i_err # add it to the integral error
             i_err_int = saturate(i_err_int, 10000, -10000) # saturate the integral error
