@@ -127,7 +127,6 @@ def tick(t):
 
 # These functions relate to the configuring of and reading data from the INA219 Current sensor
 class ina219: 
-    
     # Register Locations
     REG_CONFIG = 0x00
     REG_SHUNTVOLTAGE = 0x01

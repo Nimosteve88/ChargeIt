@@ -386,7 +386,7 @@ def continuously_fetch_data():
             handle_deferables(tick, deferables_data)
             combined_strategy(day, tick, current_buy_price, current_sell_price)
             deferable_power = 0
-            
+            print(f"Tick: {tick}, Decision: {decision}, Balance Reserve: {balance_reserve}, Flywheel Energy: {energy['flywheel_energy']}, Deferable Power: {deferable_power}")
             last_tick = current_tick  # Update the last_tick after processing
 
 
