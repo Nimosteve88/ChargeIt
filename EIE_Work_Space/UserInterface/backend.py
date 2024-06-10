@@ -190,63 +190,125 @@ def fetch_last_n_buy_prices_yesterday(n):
         session.close()
     return result
 
-def calculate_moving_average(prices, window):
-    if len(prices) < window:
-        return sum(prices) / len(prices)  # Return average if not enough data points
-    return sum(prices[-window:]) / window
 
-
-def trading_strategy2(buy_price, sell_price):
-    global power, demand, energy, balance_reserve, decision
-
-    # Query the past buy and sell prices
-    session = Session()
-    past_prices = session.query(PriceData).order_by(PriceData.id.desc()).limit(60).all()
-    session.close()
-
-    # Extract buy and sell prices
-    past_buy_prices = [price.buy_price for price in past_prices]
-    past_sell_prices = [price.sell_price for price in past_prices]
-
-    # Calculate moving averages
-    window = 10  # For example, a 10-tick window
-    buy_price_ma = calculate_moving_average(past_buy_prices, window)
-    sell_price_ma = calculate_moving_average(past_sell_prices, window)
-
-    # Calculate remaining power
+def combined_strategy(current_day, current_tick, current_buy_price, current_sell_price):
+    global power, demand, energy, balance_reserve, decision, indicator
     remaining_power = float(power['pv_power']) - float(demand['demand'])
+    initial_decision = None
 
-    # Check if remaining power is less than 0
+    # Initial demand strategy logic
     if remaining_power < 0:
-        # Check if flywheel is empty
-        if float(energy['flywheel_energy']) <= 0.1:
-            # Buy remaining power from grid if the current buy price is below the moving average
-            if buy_price < buy_price_ma:
-                decision = 'BUY'
-                balance_reserve -= buy_price
+        if float(energy['flywheel_energy']) <= 0.3:
+            initial_decision = "BUY"
+            balance_reserve -= current_buy_price * abs(remaining_power)
+            indicator = 1
         else:
-            # Discharge remaining power from flywheel
-            energy['flywheel_energy'] = str(float(energy['flywheel_energy']) + remaining_power)
-            # Check if flywheel is empty and remaining power is still less than 0
-            if float(energy['flywheel_energy']) <= 0.1 and remaining_power < 0:
-                if buy_price < buy_price_ma:
-                    decision = 'BUY'
-                    balance_reserve -= buy_price
+            if abs(remaining_power) > float(energy['flywheel_energy']):
+                discharge_flywheel(float(energy['flywheel_energy']))
+                initial_decision = "BUY"
+                balance_reserve -= current_buy_price * (abs(remaining_power) - float(energy['flywheel_energy']))
+                indicator = 1
+            else:
+                discharge_flywheel(float(remaining_power))
+
+    # Secondary decision based on price trends
+    if initial_decision is None:
+        try:
+            last_10_sell_prices = fetch_last_n_sell_prices(current_day, current_tick, 10)
+            last_10_buy_prices = fetch_last_n_buy_prices(current_day, current_tick, 10)
+                
+            if len(last_10_sell_prices) < 10:
+                remaining_needed = 10 - len(last_10_sell_prices)
+                last_10_sell_prices += fetch_last_n_sell_prices_yesterday(remaining_needed)
+                
+            if len(last_10_buy_prices) < 10:
+                remaining_needed = 10 - len(last_10_buy_prices)
+                last_10_buy_prices += fetch_last_n_buy_prices_yesterday(remaining_needed)
+                
+            all_sell_prices = last_10_sell_prices + [current_sell_price]
+            all_buy_prices = last_10_buy_prices + [current_buy_price]
+                
+            avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
+            avg_buy_price = sum(all_buy_prices) / len(all_buy_prices)
+
+            localsell = sum(all_sell_prices[:3]) / 3
+            localbuy = sum(all_buy_prices[:3]) / 3
+
+            # Adjust thresholds for a more conservative strategy
+            sell_threshold_high = localbuy * 1.25
+            sell_threshold_low = localbuy * 0.95
+            buy_threshold_high = localsell * 1.1
+            buy_threshold_low = localsell * 0.9
+
+            if current_buy_price > avg_buy_price:
+                if current_buy_price > sell_threshold_high:
+                    decision = "SELL"
+                    balance_reserve += float(current_buy_price) * float(energy['flywheel_energy'])
+                    discharge_flywheel(float(energy['flywheel_energy']) / 2)  # Incremental discharge
+                else:
+                    decision = "HOLD"
+            elif current_buy_price < sell_threshold_low and current_buy_price > avg_buy_price:
+                decision = "SELL"
+                balance_reserve += float(current_buy_price)
+                discharge_flywheel(float(energy['flywheel_energy']) / 2)  # Incremental discharge
+
+            if current_sell_price < avg_sell_price:
+                if current_sell_price < buy_threshold_low:
+                    decision = "BUY"
+                    balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
+                    charge_flywheel(1.48)
+                else:
+                    decision = "HOLD"
+            elif current_sell_price > buy_threshold_high and current_sell_price < avg_sell_price:
+                decision = "BUY"
+                balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
+                charge_flywheel(1.48)
+
+            if (current_buy_price > avg_buy_price) and (current_sell_price < avg_sell_price):
+                if current_sell_price < localsell and current_buy_price > localbuy:
+                    if float(energy['flywheel_energy']) > 4.0:
+                        decision = "SELL"
+                        balance_reserve += float(current_buy_price) * float(energy['flywheel_energy'])
+                        discharge_flywheel(float(energy['flywheel_energy']) / 2)  # Incremental discharge
+                    else:
+                        decision = "BUY"
+                        balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
+                        charge_flywheel(1.48)
+                elif current_sell_price < localsell:
+                    if current_sell_price < localsell * 0.85:
+                        decision = "BUY"
+                        balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
+                        charge_flywheel(1.48)
+                    else:
+                        decision = "HOLD"
+                else:
+                    if current_buy_price > localbuy * 1.25:
+                        decision = "SELL"
+                        balance_reserve += float(current_buy_price) * float(energy['flywheel_energy'])
+                        discharge_flywheel(float(energy['flywheel_energy']) / 2)  # Incremental discharge
+                    else:
+                        decision = "HOLD"
+                
+        except Exception as e:
+            print(f"Error in trading_strategy: {e}")
+
     else:
-        # Check if flywheel is full
-        if float(energy['flywheel_energy']) >= 60.0:
-            # Sell remaining power to grid if the current sell price is above the moving average
-            if sell_price > sell_price_ma:
-                decision = 'SELL'
-                balance_reserve += sell_price
-        else:
-            # Charge flywheel with remaining power
-            energy['flywheel_energy'] = str(float(energy['flywheel_energy']) + remaining_power)
-            # Check if flywheel is full and there is still remaining power
-            if float(energy['flywheel_energy']) >= 60.0 and remaining_power > 0:
-                if sell_price > sell_price_ma:
-                    decision = 'SELL'
-                    balance_reserve += sell_price
+        last_10_sell_prices = fetch_last_n_sell_prices(current_day, current_tick, 10)
+        if len(last_10_sell_prices) < 10:
+            remaining_needed = 10 - len(last_10_sell_prices)
+            last_10_sell_prices += fetch_last_n_sell_prices_yesterday(remaining_needed)
+        all_sell_prices = last_10_sell_prices + [current_sell_price]
+        avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
+        
+        localsell = sum(all_sell_prices[-3:]) / 3
+
+        if current_sell_price < avg_sell_price:
+            if current_sell_price < localsell * 0.85:
+                balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
+                charge_flywheel(1.48)
+
+    print(f"Combined strategy decision: {decision}")
+
 
 def discharge_flywheel(amount):
     # add logic to discharge flywheel/capacitor
@@ -257,85 +319,6 @@ def charge_flywheel(amount):
     energy['flywheel_energy'] = str(float(energy['flywheel_energy']) + amount)
     pass
 indicator = 0
-def demand_strategy(sell_price, buy_price): # swapped when putting in parameters as grid BUYS AT SELL PRICE and SELLS AT BUY PRICE
-    global power, demand, energy, balance_reserve, decision, indicator
-    rem_pwr =  float(demand['demand']) - float(power['pv_power']) 
-    if rem_pwr < 0: # if demand CANNOT be satisfied by power from PV
-        if float(energy['flywheel_energy']) <= 0.3:
-            decision = "BUY"
-            balance_reserve -= buy_price
-            indicator = 1
-        else:
-            if abs(rem_pwr) > float(energy['flywheel_energy']):
-                discharge_flywheel(float(energy['flywheel_energy']))
-                decision = "BUY"
-                balance_reserve -= buy_price
-                indicator = 1
-                # if absolute value of remaining power is more than reserves
-                # discharge then buy remaining
-            else: # if remaining power is equal to reserves or less than reserves
-                discharge_flywheel(rem_pwr)
-    else: # if demand CAN be satisfied by power from pv
-        if float(energy['flywheel_energy']) >= 8.0:
-            decision = "SELL"
-            balance_reserve += sell_price
-            indicator = 1
-        else:
-            difference = 8.0 - float(energy['flywheel_energy'])
-            if abs(rem_pwr) > difference:
-                charge_flywheel(difference)
-                decision = "SELL"
-                balance_reserve += (sell_price * (abs(rem_pwr) - difference))
-                indicator = 1
-            else:
-                charge_flywheel(abs(rem_pwr))
-            # if absolute value of remaining power is more than energy needed
-            # to fully charge flywheel, charge then sell
-
-def trading_strategy(current_day, current_tick, current_buy_price, current_sell_price):
-    global decision, indicator
-    if indicator:
-        indicator = 0
-    else:
-        try:
-            # Fetch the last 4 sell prices
-            last_4_sell_prices = fetch_last_n_sell_prices(current_day, current_tick, 4)
-            # Fetch the last 4 buy prices
-            last_4_buy_prices = fetch_last_n_buy_prices(current_day, current_tick, 4)
-            
-            if len(last_4_sell_prices) < 4:
-                remaining_needed = 4 - len(last_4_sell_prices)
-                last_4_sell_prices += fetch_last_n_sell_prices_yesterday(remaining_needed)
-            
-            if len(last_4_buy_prices) < 4:
-                remaining_needed = 4 - len(last_4_buy_prices)
-                last_4_buy_prices += fetch_last_n_buy_prices_yesterday(remaining_needed)
-            
-            all_sell_prices = last_4_sell_prices + [current_sell_price]
-            all_buy_prices = last_4_buy_prices + [current_buy_price]
-            
-            avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
-            avg_buy_price = sum(all_buy_prices) / len(all_buy_prices)
-            
-            prev_sell_price = last_4_sell_prices[0] if last_4_sell_prices else 0
-            prev_buy_price = last_4_buy_prices[0] if last_4_buy_prices else 0
-            global balance_reserve
-            if current_buy_price > prev_buy_price * 1.15:
-                if current_buy_price > avg_buy_price * 1.45:
-                    decision = "SELL"
-                    balance_reserve += float(current_sell_price)
-                else:
-                    decision = "HOLD"
-            elif current_buy_price < prev_buy_price and current_buy_price > avg_buy_price * 1.5:
-                decision = "SELL"
-                balance_reserve += float(current_sell_price)
-            elif current_sell_price < avg_sell_price * 0.85 and current_sell_price < prev_sell_price * 0.85:
-                decision = "BUY"
-                balance_reserve -= float(current_buy_price)
-            else:
-                decision = "HOLD"
-        except Exception as e:
-            print(f"Error in trading_strategy: {e}")
 
 def continuously_fetch_data():
     last_tick = None  # Initialize the last_tick variable
@@ -385,16 +368,7 @@ def continuously_fetch_data():
             
             current_buy_price = price_data_extracted.get('buy_price', None)
             current_sell_price = price_data_extracted.get('sell_price', None)
-            demand_strategy(current_buy_price, current_sell_price)
-            trading_strategy(day, tick, current_buy_price, current_sell_price)
-            #trading_strategy2(current_buy_price, current_sell_price)
-
-            # print(f"--------------------DATA FOR DAY {day}, TICK {tick}--------------------")
-            # print(f"Buy Price: {price_data_extracted.get('buy_price')}, Sell Price: {price_data_extracted.get('sell_price')}")
-            # print(f"Sun: {sun_data_extracted.get('sun')}")
-            # print(f"Demand: {demand_data_extracted.get('demand')}")
-            # print("----------------------------------------------------------\n")
-            # print("Data inserted into the database successfully")
+            combined_strategy(day, tick, current_buy_price, current_sell_price)
             
             last_tick = current_tick  # Update the last_tick after processing
 
