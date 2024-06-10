@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real-time Updates</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .data-field {
+            margin: 10px 0;
+        }
+        .data-field span {
+            font-weight: bold;
+        }
+    </style>
+    <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            var socket = io();
+
+            socket.on('connect', function() {
+                console.log('Connected to server');
+            });
+
+            socket.on('update_data', function(data) {
+                console.log('Data received:', data);
+                for (var key in data) {
+                    document.getElementById(key).textContent = data[key];
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+    <h1>Real-time Data</h1>
+    <div id="data">
+        <div class="data-field">Va: <span id="Va">No data yet</span></div>
+        <div class="data-field">Vb: <span id="Vb">No data yet</span></div>
+        <div class="data-field">Vpot: <span id="Vpot">No data yet</span></div>
+        <div class="data-field">iL: <span id="iL">No data yet</span></div>
+        <div class="data-field">OC: <span id="OC">No data yet</span></div>
+        <div class="data-field">CL: <span id="CL">No data yet</span></div>
+        <div class="data-field">BU: <span id="BU">No data yet</span></div>
+        <div class="data-field">Irradiance: <span id="Irradiance">No data yet</span></div>
+        <div class="data-field">Duty: <span id="duty">No data yet</span></div>
+        <div class="data-field">i_err: <span id="i_err">No data yet</span></div>
+        <div class="data-field">i_err_int: <span id="i_err_int">No data yet</span></div>
+        <div class="data-field">i_pi_out: <span id="i_pi_out">No data yet</span></div>
+        <div class="data-field">i_ref: <span id="i_ref">No data yet</span></div>
+    </div>
+</body>
+</html>
