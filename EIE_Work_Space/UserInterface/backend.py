@@ -39,6 +39,7 @@ energy = {
 }
 
 balance_reserve = 0.00
+deferable_power = 0.0
 
 
 # Define table structures
@@ -192,8 +193,8 @@ def fetch_last_n_buy_prices_yesterday(n):
 
 
 def combined_strategy(current_day, current_tick, current_buy_price, current_sell_price):
-    global power, demand, energy, balance_reserve, decision, indicator
-    remaining_power = float(power['pv_power']) - float(demand['demand'])
+    global power, demand, energy, balance_reserve, decision, indicator, deferable_power
+    remaining_power = float(power['pv_power']) - (float(demand['demand']) + deferable_power)
     initial_decision = None
 
     # Initial demand strategy logic
@@ -252,7 +253,7 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
                 balance_reserve += float(current_buy_price)
                 discharge_flywheel(float(energy['flywheel_energy']) / 2)  # Incremental discharge
 
-            if current_sell_price < avg_sell_price:
+            elif current_sell_price < avg_sell_price:
                 if current_sell_price < buy_threshold_low:
                     decision = "BUY"
                     balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
@@ -264,7 +265,7 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
                 balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
                 charge_flywheel(1.48)
 
-            if (current_buy_price > avg_buy_price) and (current_sell_price < avg_sell_price):
+            elif (current_buy_price > avg_buy_price) and (current_sell_price < avg_sell_price):
                 if current_sell_price < localsell and current_buy_price > localbuy:
                     if float(energy['flywheel_energy']) > 4.0:
                         decision = "SELL"
@@ -320,6 +321,20 @@ def charge_flywheel(amount):
     pass
 indicator = 0
 
+def handle_deferables(tick, deferables_data):
+    global deferable_power
+    if deferables_data:
+        for i in range(len(deferables_data)):
+            deferables_data[i]['power'] = deferables_data[i]['energy'] / ((deferables_data[i]['end'] - deferables_data[i]['start'] + 1) * 5)
+            if tick >= deferables_data[i]['start'] and tick <= deferables_data[i]['end']:
+                deferable_power += deferables_data[i]['power']
+            elif tick > deferables_data[i]['end']:
+                # add logic to remove an item from a array
+                deferables_data.pop(i)
+    else:
+        #if array is empty meaning all deferables are satisfied
+        pass
+
 def continuously_fetch_data():
     last_tick = None  # Initialize the last_tick variable
 
@@ -362,13 +377,15 @@ def continuously_fetch_data():
             #         #remove deferable item from the deferables_data database
 
             #update demand dictionary
-            global demand, sunintensity
+            global demand, sunintensity, deferable_power
             demand['demand'] = str(demanddata)
             sunintensity['sun'] = str(sun_data_extracted.get('sun'))
             
             current_buy_price = price_data_extracted.get('buy_price', None)
             current_sell_price = price_data_extracted.get('sell_price', None)
+            handle_deferables(tick, deferables_data)
             combined_strategy(day, tick, current_buy_price, current_sell_price)
+            deferable_power = 0
             
             last_tick = current_tick  # Update the last_tick after processing
 
