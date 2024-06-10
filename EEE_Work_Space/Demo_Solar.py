@@ -271,5 +271,22 @@ while True:
             #print("v_err_int = {:.3f}".format(v_err_int))
             #print("v_pi_out = {:.3f}".format(v_pi_out))
             #print(v_pot_filt)
+            data = {
+                "Va": va,
+                "Vb": vb,
+                "Vpot": vpot,
+                "iL": iL,
+                "OC": OC,
+                "CL": CL,
+                "BU": BU,
+                "Irradiance": irradiance,
+                "duty": duty,
+                "i_err": i_err,
+                "i_err_int": i_err_int,
+                "i_pi_out": i_pi_out,
+                "i_ref": i_ref
+            }
+
+            requests.post('http://' + ip +':5000', json=data)
             
         

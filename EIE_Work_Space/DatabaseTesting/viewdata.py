@@ -74,4 +74,4 @@ def delete_all_tables():
 #delete_all_data()
 #delete_all_tables()
 #view_all_data()
-view_data("price_data")
+view_data("demand_data")
