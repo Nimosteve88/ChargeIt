@@ -1,4 +1,5 @@
 from machine import Pin, I2C, ADC, PWM
+import urequests as requests
 from PID import PID
 
 vret_pin = ADC(Pin(26))
@@ -10,7 +11,7 @@ pwm_en = Pin(1, Pin.OUT)
 
 pid = PID(0.15, 11, 0, setpoint=0.05, scale='ms')
 #pidvout = PID(0.2, 10, 0, setpoint= 3, scale='ms')
-
+ip = "192.168.217.92"
 count = 0
 c2 = 0
 elapsedtime = 0
@@ -87,7 +88,18 @@ while True:
         print("iout = {:.3f}".format(iout))
         print("ledpower = {:.3f}".format(ledpower))
         print("setpoint = {:.3f}".format(setpoint))
-        
+        datasend = {
+            "Vin": vin,
+            "Vout": vout,
+            "Vled": vled,
+            "Vret": vret,
+            "Duty": pwm_out,
+            "Iout": iout,
+            "Ledpower": ledpower,
+            "Setpoint": setpoint
+            }
+
+        requests.post('http://' + ip +':5001', json=datasend)
         
 
         count = 0
