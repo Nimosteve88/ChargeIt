@@ -2,15 +2,19 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.stattools import adfuller, acf, pacf
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import itertools
 import warnings
+warnings.filterwarnings("ignore")
+from sqlalchemy import create_engine, text
+from statsmodels.tsa.arima.model import ARIMA
 import psycopg2
 from tabulate import tabulate
 
-warnings.filterwarnings("ignore")
+DATABASE_URI = "postgresql+psycopg2://postgres:ChargeIt2024@chargeit-db-instance.cdflickwg4xn.us-east-1.rds.amazonaws.com:5432/initial_db"
+engine = create_engine(DATABASE_URI)
 
 # PostgreSQL connection details
 PG_HOST = "chargeit-db-instance.cdflickwg4xn.us-east-1.rds.amazonaws.com"
@@ -81,7 +85,39 @@ def plot_demand_forecast(train, test, forecast, xlabel, ylabel, title):
     plt.legend()
     plt.show()
 
-def grid_search_arima(data, test, p_values, d_values, q_values):
+def plot_acf_pacf(data, lags=20):
+    """
+    Plot ACF and PACF for the given data.
+
+    :param data: Time series data
+    :param lags: Number of lags to include in the plot
+    """
+    plt.figure(figsize=(12, 6))
+
+    plt.subplot(121)
+    plot_acf(data, lags=lags, ax=plt.gca())
+    plt.title('Autocorrelation Function')
+
+    plt.subplot(122)
+    plot_pacf(data, lags=lags, ax=plt.gca(), method='ywm')
+    plt.title('Partial Autocorrelation Function')
+
+    plt.tight_layout()
+    plt.show()
+
+# Function to fetch and preprocess data
+def fetch_and_preprocess_data():
+    demand_data = fetch_demand_data()
+    if demand_data.empty:
+        print("No data fetched. Exiting.")
+        return pd.DataFrame()
+
+    demand_data.set_index('tick', inplace=True)
+    demand_data = validate_data(demand_data)
+    return demand_data
+
+# Function to perform grid search for ARIMA hyperparameters
+def grid_search_arima(test, data, p_values, d_values, q_values):
     best_aic = float("inf")
     best_order = None
     best_mse = None
@@ -95,10 +131,8 @@ def grid_search_arima(data, test, p_values, d_values, q_values):
                     model = ARIMA(data, order=(p, d, q))
                     model_fit = model.fit()
                     aic = model_fit.aic
-                    forecast = model_fit.get_forecast(steps=len(test))
-                    forecast_mean = forecast.predicted_mean
-                    mse = mean_squared_error(test, forecast_mean)
-                    mae = mean_absolute_error(test, forecast_mean)
+                    mse = mean_squared_error(data[-len(test):], model_fit.forecast(steps=len(test)))
+                    mae = mean_absolute_error(data[-len(test):], model_fit.forecast(steps=len(test)))
 
                     if aic < best_aic:
                         best_aic = aic
@@ -107,11 +141,11 @@ def grid_search_arima(data, test, p_values, d_values, q_values):
                         best_mae = mae
                         best_model = model_fit
                 except Exception as e:
-                    print(f"Error fitting ARIMA({p},{d},{q}): {e}")
                     continue
 
     return best_order, best_aic, best_mse, best_mae, best_model
 
+# Main function to perform the analysis
 def main():
     demand_data = fetch_demand_data()
 
@@ -124,41 +158,31 @@ def main():
 
     # Validate data
     demand_data = validate_data(demand_data)
-
-    # Use the last 100-200 data points for training
-    train = demand_data['demand'][-100:-15]  # Use the last 200 data points for training
-    test = demand_data['demand'][-15:]    # Use the last 15 data points for testing
+    train = demand_data['demand'][:-5]  # Use data except the last 5 for training
+    test = demand_data['demand'][-5:]   # Use the last 5 data points for testing
 
     # Define the parameter ranges for grid search
     p_values = range(0, 5)
     d_values = range(0, 3)
     q_values = range(0, 5)
 
-    best_order, best_aic, best_mse, best_mae, best_model = grid_search_arima(train, test, p_values, d_values, q_values)
-
-    if best_model is None:
-        print("No suitable ARIMA model found.")
-        return
+    best_order, best_aic, best_mse, best_mae, best_model = grid_search_arima(test, train, p_values, d_values, q_values)
 
     print(f"Best ARIMA order: {best_order}")
     print(f"Best AIC: {best_aic}")
     print(f"Best MSE: {best_mse}")
     print(f"Best MAE: {best_mae}")
 
-    # Forecast the next 15 data points
-    forecast = best_model.get_forecast(steps=15)
-    forecast_mean = forecast.predicted_mean
+    # Forecast the next 5 data points
+    forecast = best_model.forecast(steps=5)
 
     # Create a series for the forecast with the correct index
-    forecast_index = range(test.index[-1] + 1, test.index[-1] + 1 + len(forecast_mean))
-    forecast_series = pd.Series(forecast_mean, index=forecast_index)
-
-    # Ensure there are no NaN values in test and forecast series
-    test = test.dropna()
-    forecast_series = forecast_series.dropna()
+    forecast_index = range(test.index[0], test.index[0] + len(forecast))
+    forecast_series = pd.Series(forecast, index=forecast_index)
 
     # Plot the results
     plot_demand_forecast(train, test, forecast_series, 'Tick', 'Demand', 'Demand Forecast vs Actual')
 
 if __name__ == "__main__":
     main()
+
