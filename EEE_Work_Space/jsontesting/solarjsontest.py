@@ -19,9 +19,13 @@ def receive_data():
 def send_data():
     return jsonify(data)
 
+@app.route('/indexled')
+def indexled():
+    return render_template('indexled.html')
+
 @app.route('/index')
 def index():
-    return render_template('indexled.html')
+    return render_template('index.html')
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5001)

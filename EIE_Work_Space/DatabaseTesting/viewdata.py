@@ -49,6 +49,16 @@ def view_data(name):
     except Exception as e:
         print(f"Error fetching data: {e}")
 
+#view first 5 rows of each of a certain table
+def view_first_5_rows(name):
+    try:
+        cursor.execute(f"SELECT * FROM {name} LIMIT 5")
+        rows = cursor.fetchall()
+        print(f"\nFirst 5 rows of {name}:")
+        print(tabulate(rows, headers=[desc[0] for desc in cursor.description], tablefmt='psql'))
+    except Exception as e:
+        print(f"Error fetching data: {e}")
+
 def delete_all_data():
     tables = ["price_data", "sun_data", "demand_data", "deferables_data", "yesterday_data"]
     try:
@@ -74,4 +84,5 @@ def delete_all_tables():
 #delete_all_data()
 #delete_all_tables()
 #view_all_data()
-view_data("price_data")
+#view_data("price_data")
+view_first_5_rows("price_data")

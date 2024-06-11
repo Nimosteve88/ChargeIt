@@ -9,6 +9,7 @@ from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, 
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
+import xgboost as xgb  # Added for machine learning
 
 app = Flask(__name__)
 
@@ -40,7 +41,6 @@ energy = {
 
 balance_reserve = 0.00
 deferable_power = 0.0
-
 
 # Define table structures
 class PriceData(Base):
@@ -96,6 +96,8 @@ urls = {
     "yesterday": "https://icelec50015.azurewebsites.net/yesterday"
 }
 
+# ML Model Placeholder
+model = None
 
 def fetch_data(url):
     response = requests.get(url)
@@ -152,7 +154,7 @@ def update_yesterday_data(yesterday_data):
         print(f"Error updating yesterday_data: {e}")
     finally:
         session.close()
-        
+
 decision = "HOLD"
 
 def fetch_last_n_sell_prices(current_day, current_tick, n):
@@ -191,9 +193,50 @@ def fetch_last_n_buy_prices_yesterday(n):
         session.close()
     return result
 
+def prepare_features(data):
+    df = pd.DataFrame(data, columns=['tick', 'buy_price', 'sell_price', 'day', 'timestamp'])
+    df['price_diff'] = df['sell_price'] - df['buy_price']
+    df['buy_ma'] = df['buy_price'].rolling(window=5).mean()
+    df['sell_ma'] = df['sell_price'].rolling(window=5).mean()
+    df.dropna(inplace=True)
+    return df
+
+
+def fetch_historical_data():
+    session = Session()
+    try:
+        result = session.execute(text("""
+            SELECT tick, buy_price, sell_price, day, timestamp
+            FROM price_data
+            ORDER BY tick ASC
+        """)).fetchall()
+
+        rows = [dict(row._mapping) for row in result]
+        return rows
+    finally:
+        session.close()
+
+FEATURE_NAMES = ['buy_price', 'sell_price', 'price_diff', 'buy_ma', 'sell_ma']
+
+def train_model():
+    global model
+    while True:
+        data = fetch_historical_data()
+        if data:
+            df = prepare_features(data)
+            if not df.empty:
+                X = df[FEATURE_NAMES]
+                y = (df['sell_price'].shift(-1) > df['sell_price']).astype(int)  # Simplistic approach: 1 if price increases, else 0
+                dtrain = xgb.DMatrix(X, label=y, feature_names=FEATURE_NAMES)
+                param = {'max_depth': 3, 'eta': 0.1, 'objective': 'binary:logistic'}
+                num_round = 100
+                model = xgb.train(param, dtrain, num_round)
+                print("Model trained with features:", FEATURE_NAMES)
+
+
 
 def combined_strategy(current_day, current_tick, current_buy_price, current_sell_price):
-    global power, demand, energy, balance_reserve, decision, indicator, deferable_power
+    global power, demand, energy, balance_reserve, decision, indicator, deferable_power, model
     remaining_power = float(power['pv_power']) - (float(demand['demand']) + deferable_power)
     initial_decision = None
 
@@ -202,18 +245,20 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
         if float(energy['flywheel_energy']) <= 0.3:
             initial_decision = "BUY"
             balance_reserve -= current_buy_price * abs(remaining_power)
+            balance_reserve = round(balance_reserve)
             indicator = 1
         else:
             if abs(remaining_power) > float(energy['flywheel_energy']):
                 discharge_flywheel(float(energy['flywheel_energy']))
                 initial_decision = "BUY"
                 balance_reserve -= current_buy_price * (abs(remaining_power) - float(energy['flywheel_energy']))
+                balance_reserve = round(balance_reserve)
                 indicator = 1
             else:
                 discharge_flywheel(float(remaining_power))
 
-    # Secondary decision based on price trends
-    if initial_decision is None:
+    # Secondary decision based on price trends using ML model
+    if initial_decision is None and model is not None:
         try:
             last_10_sell_prices = fetch_last_n_sell_prices(current_day, current_tick, 10)
             last_10_buy_prices = fetch_last_n_buy_prices(current_day, current_tick, 10)
@@ -228,68 +273,30 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
                 
             all_sell_prices = last_10_sell_prices + [current_sell_price]
             all_buy_prices = last_10_buy_prices + [current_buy_price]
-                
-            avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
-            avg_buy_price = sum(all_buy_prices) / len(all_buy_prices)
 
-            localsell = sum(all_sell_prices[:3]) / 3
-            localbuy = sum(all_buy_prices[:3]) / 3
+            data = [{'tick': i, 'buy_price': buy, 'sell_price': sell, 'day': current_day, 'timestamp': datetime.utcnow()} for i, (buy, sell) in enumerate(zip(all_buy_prices, all_sell_prices))]
+            df = prepare_features(data)
 
-            # Adjust thresholds for a more conservative strategy
-            sell_threshold_high = localbuy * 1.25
-            sell_threshold_low = localbuy * 0.95
-            buy_threshold_high = localsell * 1.1
-            buy_threshold_low = localsell * 0.9
+            if not df.empty:
+                X = df[FEATURE_NAMES].iloc[-1]
+                print("Features for prediction:", X.to_dict())  # Debugging statement
+                dmatrix = xgb.DMatrix(X.values.reshape(1, -1), feature_names=FEATURE_NAMES)
+                prediction = model.predict(dmatrix)
 
-            if current_buy_price > avg_buy_price:
-                if current_buy_price > sell_threshold_high:
-                    decision = "SELL"
-                    balance_reserve += float(current_buy_price) * float(energy['flywheel_energy'])
-                    discharge_flywheel(float(energy['flywheel_energy']) / 2)  # Incremental discharge
-                else:
-                    decision = "HOLD"
-            elif current_buy_price < sell_threshold_low and current_buy_price > avg_buy_price:
-                decision = "SELL"
-                balance_reserve += float(current_buy_price)
-                discharge_flywheel(float(energy['flywheel_energy']) / 2)  # Incremental discharge
-
-            elif current_sell_price < avg_sell_price:
-                if current_sell_price < buy_threshold_low:
+                # Use a threshold to decide
+                if prediction > 0.5:
                     decision = "BUY"
+                    print(f"ML model decision: {decision}")
                     balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
+                    balance_reserve = round(balance_reserve)
                     charge_flywheel(1.48)
                 else:
-                    decision = "HOLD"
-            elif current_sell_price > buy_threshold_high and current_sell_price < avg_sell_price:
-                decision = "BUY"
-                balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
-                charge_flywheel(1.48)
+                    decision = "SELL"
+                    print(f"ML model decision: {decision}")
+                    balance_reserve += float(current_buy_price) * float(energy['flywheel_energy'])
+                    balance_reserve = round(balance_reserve)
+                    discharge_flywheel(float(energy['flywheel_energy']) / 2)  # Incremental discharge
 
-            elif (current_buy_price > avg_buy_price) and (current_sell_price < avg_sell_price):
-                if current_sell_price < localsell and current_buy_price > localbuy:
-                    if float(energy['flywheel_energy']) > 4.0:
-                        decision = "SELL"
-                        balance_reserve += float(current_buy_price) * float(energy['flywheel_energy'])
-                        discharge_flywheel(float(energy['flywheel_energy']) / 2)  # Incremental discharge
-                    else:
-                        decision = "BUY"
-                        balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
-                        charge_flywheel(1.48)
-                elif current_sell_price < localsell:
-                    if current_sell_price < localsell * 0.85:
-                        decision = "BUY"
-                        balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
-                        charge_flywheel(1.48)
-                    else:
-                        decision = "HOLD"
-                else:
-                    if current_buy_price > localbuy * 1.25:
-                        decision = "SELL"
-                        balance_reserve += float(current_buy_price) * float(energy['flywheel_energy'])
-                        discharge_flywheel(float(energy['flywheel_energy']) / 2)  # Incremental discharge
-                    else:
-                        decision = "HOLD"
-                
         except Exception as e:
             print(f"Error in trading_strategy: {e}")
 
@@ -306,19 +313,24 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
         if current_sell_price < avg_sell_price:
             if current_sell_price < localsell * 0.85:
                 balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
+                balance_reserve = round(balance_reserve)
                 charge_flywheel(1.48)
 
     print(f"Combined strategy decision: {decision}")
+
+
 
 
 def discharge_flywheel(amount):
     # add logic to discharge flywheel/capacitor
     energy['flywheel_energy'] = str(float(energy['flywheel_energy']) - amount)
     pass
+
 def charge_flywheel(amount):
     # add logic to charge flywheel/capacitor
     energy['flywheel_energy'] = str(float(energy['flywheel_energy']) + amount)
     pass
+
 indicator = 0
 
 def handle_deferables(tick, deferables_data):
@@ -371,11 +383,6 @@ def continuously_fetch_data():
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
 
-            # for deferable in deferables_data:
-            #     if deferable['start'] <= current_tick <= deferable['end']:
-            #         print(deferable['energy'])
-            #         #remove deferable item from the deferables_data database
-
             #update demand dictionary
             global demand, sunintensity, deferable_power
             demand['demand'] = str(demanddata)
@@ -386,10 +393,8 @@ def continuously_fetch_data():
             handle_deferables(tick, deferables_data)
             combined_strategy(day, tick, current_buy_price, current_sell_price)
             deferable_power = 0
-            print(f"Tick: {tick}, Decision: {decision}, Balance Reserve: {balance_reserve}, Flywheel Energy: {energy['flywheel_energy']}, Deferable Power: {deferable_power}")
+            #print(f"Tick: {tick}, Decision: {decision}, Balance Reserve: {balance_reserve}, Flywheel Energy: {energy['flywheel_energy']}, Deferable Power: {deferable_power}")
             last_tick = current_tick  # Update the last_tick after processing
-
-
 
 @app.route('/')
 def index():
@@ -406,14 +411,11 @@ def data():
             ORDER BY tick, timestamp ASC
         """)).fetchall()
         
-        # rows = [{column: value for column, value in row.items()} for row in result]
-
         rows = [dict(row._mapping) for row in result]
         
         if not rows:
             return jsonify({"ticks": [], "buy_prices": [], "sell_prices": [], "current_demand": "-", "current_day": "-", "current_sun": "-"})
 
-        # Organize data by day
         data_by_day = {}
         for row in rows:
             day = row['day']
@@ -421,7 +423,6 @@ def data():
                 data_by_day[day] = []
             data_by_day[day].append(row)
         
-        # Sort ticks within each day
         sorted_rows = []
         for day in sorted(data_by_day.keys()):
             sorted_rows.extend(sorted(data_by_day[day], key=lambda x: x['tick']))  # Sort by tick within each day
@@ -452,36 +453,24 @@ def alldata():
             ORDER BY tick ASC
         """)).fetchall()
         
-       # rows = [{column: value for column, value in row.items()} for row in result]
-
         rows = [dict(row._mapping) for row in result]
 
         if not rows:
             return jsonify({"ticks": [], "buy_prices": [], "cumulative_buy_avg": [], "cumulative_sell_avg": [], "avg_buy_price_per_tick": [], "sell_prices": []})
 
         df = pd.DataFrame(rows, columns=['tick', 'buy_price', 'sell_price', 'day', 'timestamp'])
-
-        # Ensure all ticks are present
-     
-
         cumulative_buy_avg = calculate_cumulative_average(df, 'buy_price')
         cumulative_sell_avg = calculate_cumulative_average(df, 'sell_price')
-
-        # Calculate the average buy price per tick
         avg_buy_price_per_tick = df.groupby('tick')['buy_price'].mean().tolist()
 
         data = {
             "ticks": df['tick'].tolist(),
-            #"buy_prices": df['buy_price'].tolist(),
             "cumulative_buy_avg": cumulative_buy_avg,
             "cumulative_sell_avg": cumulative_sell_avg
-            #"avg_buy_price_per_tick": avg_buy_price_per_tick,
-            #"sell_prices": df['sell_price'].tolist()
         }
         return jsonify(data)
     finally:
         session.close()
-
 
 @app.route('/decision')
 def get_decision():
@@ -492,10 +481,8 @@ def get_decision():
 def get_deferables():
     global power
     if request.method == 'GET':
-        # Return the current power
         return jsonify(power)
     elif request.method == 'POST':
-        # Update the power with the new data from the request
         data = request.json
         if 'grid_power' in data:
             power['grid_power'] = data['grid_power']
@@ -507,10 +494,8 @@ def get_deferables():
 def get_demand():
     global demand
     if request.method == 'GET':
-        # Return the current demand
         return jsonify(demand)
     elif request.method == 'POST':
-        # Update the demand with the new data from the request
         data = request.json
         if 'demand' in data:
             demand['demand'] = data['demand']
@@ -520,10 +505,8 @@ def get_demand():
 def get_sun():
     global sunintensity
     if request.method == 'GET':
-        # Return the current sun intensity
         return jsonify(sunintensity)
     elif request.method == 'POST':
-        # Update the sun intensity with the new data from the request
         data = request.json
         if 'sun' in data:
             sunintensity['sun'] = data['sun']
@@ -533,10 +516,8 @@ def get_sun():
 def get_energy():
     global energy
     if request.method == 'GET':
-        # Return the current energy
         return jsonify(energy)
     elif request.method == 'POST':
-        # Update the energy with the new data from the request
         data = request.json
         if 'flywheel_energy' in data:
             energy['flywheel_energy'] = data['flywheel_energy']
@@ -557,7 +538,6 @@ def get_deferables_data():
     data = fetch_data(urls["deferables"])
     return jsonify(data)
 
-
 @app.route('/balance-data')
 def balance_data():
     global balance_reserve
@@ -566,9 +546,12 @@ def balance_data():
     }
     return jsonify(balance_data)
 
-
 if __name__ == "__main__":
+    train_thread = threading.Thread(target=train_model)
+    train_thread.start()
+    
     fetch_thread = threading.Thread(target=continuously_fetch_data)
     fetch_thread.start()
     
     app.run(debug=True, host='0.0.0.0', port=5000)
+
