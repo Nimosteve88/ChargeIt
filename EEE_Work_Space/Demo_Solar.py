@@ -2,6 +2,7 @@ from machine import Pin, I2C, ADC, PWM, Timer
 import urequests as requests 
 import network
 import utime
+import gc
 
 ##########################WIFI CONNECTION##########################
 ssid = 'SteveGalaxy'
@@ -44,16 +45,9 @@ print('IP = ' + status[0])
 
 
 irradiance = 0 # initialise irradiance
-
-data = None
 ip = '192.168.217.92'
-url = 'https://icelec50015.azurewebsites.net/sun'
-response = requests.get(url)
-if response.status_code == 200:
-    data = response.json()
-    irradiance = float(data['sun'])
-else:
-    print('Failed to retrieve data from server')
+
+
 
 ##########################WIFI CONNECTION##########################
 
@@ -175,6 +169,7 @@ while True:
         
         # This starts a 1kHz timer which we use to control the execution of the control loops and sampling
         loop_timer = Timer(mode=Timer.PERIODIC, freq=1000, callback=tick)
+        #print('asdasda')
     
         # If the timer has elapsed it will execute some functions, otherwise it skips everything and repeats until the timer elapses
     
@@ -243,38 +238,45 @@ while True:
         timer_elapsed = 0
         
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
-        if count > 500:
+        if count > 2500:
+            data = None
+            ip = '192.168.217.92'
+            url = 'http://'+ ip +':5000/sun'
             response = requests.get(url)
+
             if response.status_code == 200:
                 data = response.json()
                 irradiance = float(data['sun'])
             else:
                 print('Failed to retrieve data from server')
+                
+            response.close()
+            gc.collect()
             
             
             count = 0
  
-        if count % 100 == 0:
+        if count % 1000 == 0:
             
-            print("Va = {:.3f}".format(va))
-            print("Vb = {:.3f}".format(vb))
-            print("Vpot = {:.3f}".format(vpot))
-            print("iL = {:.3f}".format(iL))
-            print("OC = {:b}".format(OC))
-            print("CL = {:b}".format(CL))
-            print("BU = {:b}".format(BU))
-            print("Irradiance = ", irradiance)
-            #print("trip = {:b}".format(trip))
-            print("duty = {:d}".format(duty))
-            print("i_err = {:.3f}".format(i_err))
-            print("i_err_int = {:.3f}".format(i_err_int))
-            print("i_pi_out = {:.3f}".format(i_pi_out))
-            print("i_ref = {:.3f}".format(i_ref))
-            #print("v_err = {:.3f}".format(v_err))
-            #print("v_err_int = {:.3f}".format(v_err_int))
-            #print("v_pi_out = {:.3f}".format(v_pi_out))
-            #print(v_pot_filt)
-            data = {
+            # print("Va = {:.3f}".format(va))
+            # print("Vb = {:.3f}".format(vb))
+            # print("Vpot = {:.3f}".format(vpot))
+            # print("iL = {:.3f}".format(iL))
+            # print("OC = {:b}".format(OC))
+            # print("CL = {:b}".format(CL))
+            # print("BU = {:b}".format(BU))
+            # print("Irradiance = ", irradiance)
+            # #print("trip = {:b}".format(trip))
+            # print("duty = {:d}".format(duty))
+            # print("i_err = {:.3f}".format(i_err))
+            # print("i_err_int = {:.3f}".format(i_err_int))
+            # print("i_pi_out = {:.3f}".format(i_pi_out))
+            # print("i_ref = {:.3f}".format(i_ref))
+            # #print("v_err = {:.3f}".format(v_err))
+            # #print("v_err_int = {:.3f}".format(v_err_int))
+            # #print("v_pi_out = {:.3f}".format(v_pi_out))
+            # #print(v_pot_filt)
+            datasend = {
                 "Va": va,
                 "Vb": vb,
                 "Vpot": vpot,
@@ -290,6 +292,9 @@ while True:
                 "i_ref": i_ref
             }
 
-            requests.post('http://' + ip +':5000', json=data)
+            requests.post('http://' + ip +':5001', json=datasend)
+
+            gc.collect()
             
         
+
