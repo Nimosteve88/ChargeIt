@@ -283,7 +283,7 @@ while True:
                 "flywheel_energy": energy
             }
 
-            requests.post('http://' + ip + ':5000')
+            requests.post('http://' + ip + ':5000/energy', json=datasend)
 
             count = 0
 
