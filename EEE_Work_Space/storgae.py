@@ -1,4 +1,50 @@
 from machine import Pin, I2C, ADC, PWM, Timer
+import urequests as requests 
+import network
+import utime
+import gc
+
+##########################WIFI CONNECTION##########################
+ssid = 'SteveGalaxy'
+password = 'ChargeIt'
+
+# Set WiFi to station interface
+wlan = network.WLAN(network.STA_IF)
+# Activate the network interface
+wlan.active(True)
+
+#Check if already connected
+while not wlan.isconnected():
+    print('Connecting to network...')
+    wlan.connect(ssid, password)
+
+    max_wait = 10
+    # Wait for connection
+    while max_wait > 0:
+        if wlan.status() < 0 or wlan.status() >= 3:
+            # Connection successful
+            break
+        max_wait -= 1
+        print('Waiting for connection... ' + str(max_wait))
+        utime.sleep(1)
+
+    # Check connection
+    #if wlan.status() != 3:
+        # No connection
+        #raise RuntimeError('Network connection failed')
+        #continue
+#else:
+ #   print('Already connected to network')
+
+# Connection successful
+print('WLAN connected')
+status = wlan.ifconfig()
+pico_ip = status[0]
+print('IP = ' + status[0])
+
+##########################WIFI CONNECTION##########################
+
+ip = '192.168.217.92'
 
 # Set up some pin allocations for the Analogues and switches
 va_pin = ADC(Pin(28))
@@ -18,6 +64,7 @@ max_pwm = 64536
 pwm_out = min_pwm
 pwm_ref = 30000
 capacitance = 0.5
+resevoirpower = 0
 
 #Some error signals
 trip = 0
@@ -180,8 +227,8 @@ while True:
             pwm.duty_u16(duty) # now we output the pwm
             
         else: # Closed Loop Current Control
-                    
-            i_ref = saturate(vpot-1.66, 1.5,-1.5)
+            i_ref = resevoirpower /vb        
+            #i_ref = saturate(vpot-1.66, 1.5,-1.5)
             if va > 15.5:
                 i_ref = 0
             i_err = i_ref-iL # calculate the error in voltage
@@ -199,7 +246,18 @@ while True:
         timer_elapsed = 0
         
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
-        if count > 500:
+        if count > 1000:
+
+            data = None
+            ip = '192.168.217.92'
+            url = 'http://'+ip+':5000/resevoirpower'
+            response = requests.get(url)
+            if response.status_code == 200:
+                data = response.json()
+            else:
+                print('Failed to retrieve data from server')
+
+            resevoirpower = float(data['resevoirpower'])
             
             print("Va = {:.3f}".format(va))
             print("Vb = {:.3f}".format(vb))
@@ -221,3 +279,4 @@ while True:
             #print(v_pot_filt)
             print(" ")
             count = 0
+

@@ -1,8 +1,9 @@
-from machine import Pin, I2C, ADC, PWM
+from machine import Pin, I2C, ADC, PWM, Timer
 from PID import PID
 import urequests as requests 
 import network
 import utime
+import _thread as thr
 
 
 ##########################WIFI CONNECTION##########################
@@ -14,8 +15,8 @@ wlan = network.WLAN(network.STA_IF)
 # Activate the network interface
 wlan.active(True)
 
-# Check if already connected
-if not wlan.isconnected():
+#Check if already connected
+while not wlan.isconnected():
     print('Connecting to network...')
     wlan.connect(ssid, password)
 
@@ -30,11 +31,12 @@ if not wlan.isconnected():
         utime.sleep(1)
 
     # Check connection
-    if wlan.status() != 3:
+    #if wlan.status() != 3:
         # No connection
-        raise RuntimeError('Network connection failed')
-else:
-    print('Already connected to network')
+        #raise RuntimeError('Network connection failed')
+        #continue
+#else:
+ #   print('Already connected to network')
 
 # Connection successful
 print('WLAN connected')
@@ -62,13 +64,19 @@ elapsedtime = 0
 pwm_out = 0
 pwm_ref = 0
 initsetpoint = pid.setpoint
-setpoint = pid.setpoint
+global setpoint
+setpoint = 0
 delta = 0.01
-demand = 0
 
+ip = '192.168.217.92'
 
+max_power = pid.setpoint
+min_power = pid.setpoint
 
-
+global timer_elapsed
+timer_elapsed = 0
+count = 0
+first_run = 1
 
 global SHUNT_OHMS
 SHUNT_OHMS = 1.02
@@ -80,75 +88,25 @@ def saturate(duty):
         duty = 100
     return duty
 
+def tick(t): 
+    global timer_elapsed
+    timer_elapsed = 1
+
+global demand
+demand = 0
 #csv_file_path = "LED_power.csv"
-with open("LED_power.txt", "w") as file:
-    file.write("Time (ms), Power (W)\n")
+#with open("LED_power.csv", "w") as file:
+ # file.write("Time (ms), Power (W)\n")
 
-while True:        
-    #demand = 2.5
-    #
-    
-    pwm_en.value(1)
+#loop_timer = Timer(mode=Timer.PERIODIC, freq=1000, callback=tick)
 
-    vin = 1.026*(12490/2490)*3.3*(vin_pin.read_u16()/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
-    vout = 1.026*(12490/2490)*3.3*(vout_pin.read_u16()/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
-    vret = 1*3.3*((vret_pin.read_u16()-350)/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
-    count = count + 1
-    elapsedtime = elapsedtime + 1
-    c2 = c2 + 1
-    
-    
-    iout = vret/SHUNT_OHMS
-    vled = vout - vret
-    
-    ledpower = vled * iout
-    
-    '''
-    if ledpower - initsetpoint >= 0.01:
-        setpoint = setpoint - delta
-        
-    elif initsetpoint - ledpower>= 0.01:
-        setpoint = setpoint + delta
-            
-    pid.setpoint = setpoint
-    '''
-    if abs(ledpower - pid.setpoint) <= 0.01:
-        pwm_ref = pwm_out
-        
-    else:
-        pwm_ref = pid(ledpower)
-        pwm_ref = int(pwm_ref*65536)
-        pwm_out = saturate(pwm_ref)
-        pwm.duty_u16(pwm_out)
-        
-    
-
-    '''    
-    if c2 > 9:
-        if elapsedtime < 10000:
-            with open("LED_power.txt", "a") as file:
-                file.write("{:d},{:.3f}\n".format(elapsedtime, ledpower))
-        c2 = 0
-        #print("ben")
-    '''
-
-    
-    if count % 100 == 0:
-        print("Vin = {:.3f}".format(vin))
-        print("Vout = {:.3f}".format(vout))
-        print("Vled = {:.3f}".format(vled))
-        print("Vret = {:.3f}".format(vret))
-        print("Duty = {:.0f}".format(pwm_out))
-        print("pwmref = {:.0f}".format(pwm_ref))
-        print("iout = {:.3f}".format(iout))
-        print("ledpower = {:.3f}".format(ledpower))
-        print("pidsetpoint = {:.3f}".format(pid.setpoint))
-        print("Demand = {:.3f}".format(demand))
-    
-    
-    if count > 500:
+def make_request():
+    #while True:
+        global setpoint
+        global demand
+        #start_time = utime.ticks_ms()
         data = None
-        ip = '192.168.194.92'
+        ip = '192.168.217.92'
         url = 'http://'+ip+':5000/demand'
         response = requests.get(url)
         if response.status_code == 200:
@@ -157,27 +115,162 @@ while True:
             print('Failed to retrieve data from server')
 
         demand = float(data['demand'])
-
-        pid.setpoint = demand / 5
-
+        #print('DEMAND', demand)
+        setpoint = demand / 4
         
+        #utime.sleep(2)
         
-
-        
-        
-
-        count = 0
+        #end_time = utime.ticks_ms()
+        #duration = utime.ticks_diff(end_time, start_time)
+        #print('The request took', duration, 'milliseconds')
+        #count = 0
         #setpoint = setpoint + delta
-                
-    '''
-    if ledpower - initsetpoint >= 0.01:
-        setpoint = setpoint - delta
     
-    elif initsetpoint - ledpower>= 0.01:
-        setpoint = setpoint + delta
+def send_data(value):
+    ben = 2
+    
+    
+    
+while True:        
+    #demand = 2.5
+    if first_run:
+        # for first run, set up the INA link and the loop timer settings
+        first_run = 0
         
-    pid.setpoint = setpoint
-    '''
+        # This starts a 1kHz timer which we use to control the execution of the control loops and sampling
+        loop_timer = Timer(mode=Timer.PERIODIC, freq=1000, callback=tick)
+        #thr.start_new_thread(make_request, ())
+        #print('asdasda')
+    
+        # If the timer has elapsed it will execute some functions, otherwise it skips everything and repeats until the timer elapses
+    #
+    if timer_elapsed == 1:
+        pid.setpoint = setpoint
+        pwm_en.value(1)
+
+        vin = 1.026*(12490/2490)*3.3*(vin_pin.read_u16()/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
+        vout = 1.026*(12490/2490)*3.3*(vout_pin.read_u16()/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
+        vret = 1*3.3*((vret_pin.read_u16()-350)/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
+        count = count + 1
+        elapsedtime = elapsedtime + 1
+        c2 = c2 + 1
+        #setpoint = pid.setpoint
+        
+        iout = vret/SHUNT_OHMS
+        vled = vout - vret
+        
+        ledpower = vled * iout
+        
+        '''
+        if ledpower - initsetpoint >= 0.01:
+            setpoint = setpoint - delta
+            
+        elif initsetpoint - ledpower>= 0.01:
+            setpoint = setpoint + delta
+                
+        pid.setpoint = setpoint
+        '''
+        '''
+        if abs(ledpower - pid.setpoint) <= 0.0000001:
+            pwm_out = saturate(pwm_out)
+            pwm.duty_u16(pwm_out)
+            
+        else:
+        
+            pwm_ref = pid(ledpower)
+            pwm_ref = int(pwm_ref*65536)
+            pwm_out = saturate(pwm_ref)
+            pwm.duty_u16(pwm_out)
+            
+        '''
+        pwm_ref = pid(ledpower)
+        pwm_ref = int(pwm_ref*65536)
+        pwm_out = saturate(pwm_ref)
+        pwm.duty_u16(pwm_out)
+        
+        if count > 4000:
+            if ledpower > max_power:
+                max_power = ledpower
+            
+            if ledpower < min_power:
+                min_power = ledpower
+            
+
+            
+       # if c2 > 1:
+       #     if elapsedtime < 1000:
+       #         with open("LED_power.txt", "a") as file:
+       #             file.write("{:d},{:.3f}\n".format(elapsedtime, ledpower))
+       #     c2 = 0
+            #print("ben")
+        
+
+        
+        
+        
+        if count % 1000 == 0:
+            
+            data = None
+            ip = '192.168.217.92'
+            url = 'http://'+ip+':5000/demand'
+            response = requests.get(url)
+            if response.status_code == 200:
+                data = response.json()
+            else:
+                print('Failed to retrieve data from server')
+
+            demand = float(data['demand'])
+            #print('DEMAND', demand)
+            setpoint = demand / 4
+            print("Vin = {:.3f}".format(vin))
+            print("Vout = {:.3f}".format(vout))
+            print("Vled = {:.3f}".format(vled))
+            print("Vret = {:.3f}".format(vret))
+            print("Duty = {:.0f}".format(pwm_out))
+            print("iout = {:.3f}".format(iout))
+            print("ledpower = {:.4f}".format(ledpower), "maxpower = {:.4f}".format(max_power),"minpower = {:.4f}".format(min_power))
+            # print("integral error = ", pid._integral)
+            # print("setpoint = {:.3f}".format(setpoint))
+            print(demand/4)
+            
+            #start_time = utime.ticks_ms()
+                
+            # datasend = {
+            #     "Vin": vin,
+            #     "Vout": vout,
+            #     "Vled": vled,
+            #     "Vret": vret,
+            #     "Duty": pwm_out,
+            #     "Iout": iout,
+            #     "Ledpower": ledpower,
+            #     "Setpoint": setpoint
+            #     }
+
+            # requests.post('http://' + ip +':5001', json=datasend)
+            
+            #end_time = utime.ticks_ms()
+            #duration = utime.ticks_diff(end_time, start_time)
+            #print('The Sending took', duration, 'milliseconds')
+            
+            timer_elapsed = 0
+        
+        
+            
+        
+        
+                    
+        '''
+        if ledpower - initsetpoint >= 0.01:
+            setpoint = setpoint - delta
+        
+        elif initsetpoint - ledpower>= 0.01:
+            setpoint = setpoint + delta
+            
+        pid.setpoint = setpoint
+        '''
+
+
+
 
 
 
