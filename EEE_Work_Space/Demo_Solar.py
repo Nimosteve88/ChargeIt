@@ -1,5 +1,6 @@
 from machine import Pin, I2C, ADC, PWM, Timer
 import urequests as requests 
+import urandom as random
 import network
 import utime
 import gc
@@ -68,6 +69,7 @@ min_pwm = 1000
 max_pwm = 64536
 pwm_out = min_pwm
 pwm_ref = 30000
+power_out = 0
 
 #Some error signals
 trip = 0
@@ -236,6 +238,7 @@ while True:
         # Keep a count of how many times we have executed and reset the timer so we can go back to waiting
         count = count + 1
         timer_elapsed = 0
+        power_out = vb*iL
         
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
         if count > 2500:
@@ -258,41 +261,33 @@ while True:
  
         if count % 1000 == 0:
             
-            # print("Va = {:.3f}".format(va))
-            # print("Vb = {:.3f}".format(vb))
-            # print("Vpot = {:.3f}".format(vpot))
-            # print("iL = {:.3f}".format(iL))
-            # print("OC = {:b}".format(OC))
-            # print("CL = {:b}".format(CL))
-            # print("BU = {:b}".format(BU))
-            # print("Irradiance = ", irradiance)
-            # #print("trip = {:b}".format(trip))
-            # print("duty = {:d}".format(duty))
-            # print("i_err = {:.3f}".format(i_err))
-            # print("i_err_int = {:.3f}".format(i_err_int))
-            # print("i_pi_out = {:.3f}".format(i_pi_out))
-            # print("i_ref = {:.3f}".format(i_ref))
-            # #print("v_err = {:.3f}".format(v_err))
-            # #print("v_err_int = {:.3f}".format(v_err_int))
-            # #print("v_pi_out = {:.3f}".format(v_pi_out))
-            # #print(v_pot_filt)
-            datasend = {
-                "Va": va,
-                "Vb": vb,
-                "Vpot": vpot,
-                "iL": iL,
-                "OC": OC,
-                "CL": CL,
-                "BU": BU,
-                "Irradiance": irradiance,
-                "duty": duty,
-                "i_err": i_err,
-                "i_err_int": i_err_int,
-                "i_pi_out": i_pi_out,
-                "i_ref": i_ref
-            }
+            print("Va = {:.3f}".format(va))
+            print("Vb = {:.3f}".format(vb))
+            print("Vpot = {:.3f}".format(vpot))
+            print("iL = {:.3f}".format(iL))
+            print("OC = {:b}".format(OC))
+            print("CL = {:b}".format(CL))
+            print("BU = {:b}".format(BU))
+            print("Irradiance = ", irradiance)
+            #print("trip = {:b}".format(trip))
+            print("duty = {:d}".format(duty))
+            print("i_err = {:.3f}".format(i_err))
+            print("i_err_int = {:.3f}".format(i_err_int))
+            print("i_pi_out = {:.3f}".format(i_pi_out))
+            print("i_ref = {:.3f}".format(i_ref))
+            #print("v_err = {:.3f}".format(v_err))
+            #print("v_err_int = {:.3f}".format(v_err_int))
+            #print("v_pi_out = {:.3f}".format(v_pi_out))
+            #print(v_pot_filt)
+            print("power_out = {:.3f}".format(power_out))
 
-            requests.post('http://' + ip +':5001', json=datasend)
+
+            datasend = {
+              "grid_power": str(float(random.randint(0, 50))),
+              "pv_power": str(power_out)
+                }
+
+            requests.post('http://' + ip +':5000/power', json=datasend)
 
             gc.collect()
             

@@ -35,6 +35,11 @@ sunintensity = {
     'sun': '0'
 }
 
+resevoirpower = {
+    'resevoirpower': '0.0'
+}
+
+
 energy = {
     'flywheel_energy': '6.0'
 }
@@ -323,12 +328,11 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
 
 def discharge_flywheel(amount):
     # add logic to discharge flywheel/capacitor
-    energy['flywheel_energy'] = str(float(energy['flywheel_energy']) - amount)
+    resevoirpower['resevoirpower'] = '-'+str(amount)
     pass
-
 def charge_flywheel(amount):
     # add logic to charge flywheel/capacitor
-    energy['flywheel_energy'] = str(float(energy['flywheel_energy']) + amount)
+    resevoirpower['resevoirpower'] = str(amount)
     pass
 
 indicator = 0
@@ -346,7 +350,7 @@ def handle_deferables(tick, deferables_data):
     else:
         #if array is empty meaning all deferables are satisfied
         pass
-
+liveday = None
 def continuously_fetch_data():
     last_tick = None  # Initialize the last_tick variable
 
@@ -374,7 +378,8 @@ def continuously_fetch_data():
             insert_data_into_db(PriceData, price_data_extracted)
             insert_data_into_db(SunData, sun_data_extracted)
             insert_data_into_db(DemandData, demand_data_extracted)
-            
+            global liveday
+            liveday = price_data_extracted.get('day', 'N/A')
             day = price_data_extracted.get('day', 'N/A')
             tick = price_data_extracted.get('tick', 'N/A')
             demanddata = demand_data_extracted.get('demand', 'N/A')
@@ -402,14 +407,15 @@ def index():
 
 @app.route('/data')
 def data():
+    global liveday
     session = Session()
     try:
         result = session.execute(text("""
             SELECT DISTINCT ON (tick) tick, buy_price, sell_price, day, timestamp
             FROM price_data
-            WHERE day = (SELECT MAX(day) FROM price_data)
+            WHERE day = :day
             ORDER BY tick, timestamp ASC
-        """)).fetchall()
+        """),{'day':liveday}).fetchall()
         
         rows = [dict(row._mapping) for row in result]
         
@@ -426,10 +432,10 @@ def data():
         sorted_rows = []
         for day in sorted(data_by_day.keys()):
             sorted_rows.extend(sorted(data_by_day[day], key=lambda x: x['tick']))  # Sort by tick within each day
-        global demand, sunintensity
-        current_demand = demand['demand']
+
+        current_demand = session.execute(text("SELECT demand FROM demand_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
         current_day = session.execute(text("SELECT day FROM price_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
-        current_sun = sunintensity['sun']
+        current_sun = session.execute(text("SELECT sun FROM sun_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
         
         data = {
             "ticks": [row['tick'] for row in sorted_rows],
@@ -532,6 +538,19 @@ def get_energy_data():
         'pv_power': power['pv_power']
     }
     return jsonify(data)
+
+@app.route('/resevoirpower', methods=['GET', 'POST'])
+def get_resevoirpower():
+    global resevoirpower
+    if request.method == 'GET':
+        # Return the current resevoir power
+        return jsonify(resevoirpower)
+    elif request.method == 'POST':
+        # Update the resevoir power with the new data from the request
+        data = request.json
+        if 'resevoirpower' in data:
+            resevoirpower['resevoirpower'] = data['resevoirpower']
+        return jsonify({'message': 'Data updated', 'data': resevoirpower}), 200
 
 @app.route('/deferables', methods=['GET'])
 def get_deferables_data():

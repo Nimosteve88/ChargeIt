@@ -341,10 +341,22 @@
 <script>
     var previousBalanceValue = 0;
 
+    function formatBalance(value) {
+        let isNegative = value < 0;
+        value = Math.abs(value);
+        if (value >= 100) {
+            let pounds = (value / 100).toFixed(2);
+            return `${isNegative ? '-' : ''}£${pounds}`;
+        } else {
+            return `${isNegative ? '-' : ''}${value}p`;
+        }
+    }
+
     function updateBalanceInfoBox(id, newValue) {
         var element = document.getElementById(id).querySelector('.balance-info-value');
-        if (element.textContent !== newValue) {
-            element.textContent = newValue;
+        var formattedValue = formatBalance(newValue);
+        if (element.textContent !== formattedValue) {
+            element.textContent = formattedValue;
             element.classList.remove('increased', 'decreased');
             if (newValue > previousBalanceValue) {
                 element.classList.add('increased');
@@ -364,13 +376,14 @@
         fetch('/balance-data')
             .then(response => response.json())
             .then(data => {
-                updateBalanceInfoBox('balance-reserve', data.balance_reserve || '-');
+                updateBalanceInfoBox('balance-reserve', data.balance_reserve || 0);
             });
     }
 
     // Fetch balance data every 5 seconds
     setInterval(fetchBalanceData, 1000);
 </script>
+
 
 
 
