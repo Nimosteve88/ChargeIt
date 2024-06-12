@@ -227,8 +227,8 @@ while True:
             pwm.duty_u16(duty) # now we output the pwm
             
         else: # Closed Loop Current Control
-            i_ref = resevoirpower /vb        
-            #i_ref = saturate(vpot-1.66, 1.5,-1.5)
+            #i_ref = resevoirpower /vb        
+            i_ref = saturate(vpot-1.66, 1.5,-1.5)
             if va > 15.5:
                 i_ref = 0
             i_err = i_ref-iL # calculate the error in voltage
@@ -277,6 +277,13 @@ while True:
             #print("v_err_int = {:.3f}".format(v_err_int))
             #print("v_pi_out = {:.3f}".format(v_pi_out))
             #print(v_pot_filt)
-            print(" ")
+            print(resevoirpower)
+
+            datasend = {
+                "flywheel_energy": energy
+            }
+
+            requests.post('http://' + ip + ':5000')
+
             count = 0
 
