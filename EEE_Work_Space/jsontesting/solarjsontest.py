@@ -15,12 +15,18 @@ def receive_data():
     socketio.emit('update_data', data)
     return '', 204  # Return a 204 No Content response
 
+
+
 @app.route('/', methods=['GET'])
 def send_data():
     return jsonify(data)
 
 @app.route('/index')
 def index():
+    return render_template('index.html')
+
+@app.route('/indexled')
+def indexled():
     return render_template('indexled.html')
 
 if __name__ == '__main__':

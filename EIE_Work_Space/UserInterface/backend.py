@@ -38,6 +38,10 @@ energy = {
     'flywheel_energy': '6.0'
 }
 
+resevoirpower = {
+    'resevoirpower': '0.0'
+}
+
 balance_reserve = 0.00
 deferable_power = 0.0
 
@@ -313,11 +317,11 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
 
 def discharge_flywheel(amount):
     # add logic to discharge flywheel/capacitor
-    energy['flywheel_energy'] = str(float(energy['flywheel_energy']) - amount)
+    resevoirpower['resevoirpower'] = '-2.0'
     pass
 def charge_flywheel(amount):
     # add logic to charge flywheel/capacitor
-    energy['flywheel_energy'] = str(float(energy['flywheel_energy']) + amount)
+    resevoirpower['resevoirpower'] = '2.0'
     pass
 indicator = 0
 
@@ -425,10 +429,10 @@ def data():
         sorted_rows = []
         for day in sorted(data_by_day.keys()):
             sorted_rows.extend(sorted(data_by_day[day], key=lambda x: x['tick']))  # Sort by tick within each day
-        global demand, sunintensity
-        current_demand = demand['demand']
+        #global demand, sunintensity
+        current_demand = session.execute(text("SELECT demand FROM demand_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
         current_day = session.execute(text("SELECT day FROM price_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
-        current_sun = sunintensity['sun']
+        current_sun = session.execute(text("SELECT sun FROM sun_data ORDER BY id DESC LIMIT 1")).scalar() or '-'
         
         data = {
             "ticks": [row['tick'] for row in sorted_rows],
@@ -528,6 +532,20 @@ def get_sun():
         if 'sun' in data:
             sunintensity['sun'] = data['sun']
         return jsonify({'message': 'Data updated', 'data': sunintensity}), 200
+    
+# make same function for reservoir power
+@app.route('/resevoirpower', methods=['GET', 'POST'])
+def get_resevoirpower():
+    global resevoirpower
+    if request.method == 'GET':
+        # Return the current resevoir power
+        return jsonify(resevoirpower)
+    elif request.method == 'POST':
+        # Update the resevoir power with the new data from the request
+        data = request.json
+        if 'resevoirpower' in data:
+            resevoirpower['resevoirpower'] = data['resevoirpower']
+        return jsonify({'message': 'Data updated', 'data': resevoirpower}), 200
 
 @app.route('/energy', methods=['GET', 'POST'])
 def get_energy():
