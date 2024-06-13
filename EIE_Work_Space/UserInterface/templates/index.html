@@ -17,6 +17,7 @@
             <a href="#section2">Energy Data</a>
             <a href="#section3">Overall Pricing Trend</a>
             <a href="#section4">Deferables Data</a>
+            <a href="#section5">Data Trends</a>
         </nav>
     </header>
 
@@ -65,21 +66,6 @@
             </div>
         </div>
     </div>
-    
-
-    <div class="overalldatatrend">
-        <div class="graph-header">
-            <h2 class="graph-title">Demand Trend</h2>
-        </div>
-        <canvas id="demandChart"></canvas>
-    </div>
-    <div class="overalldatatrend">
-        <div class="graph-header">
-            <h2 class="graph-title">Sunshine Intensity Trend</h2>
-        </div>
-        <canvas id="sunChart"></canvas>
-    </div>
-
 
     <div class="energydata" id="section2">
         <h2 class="dashboard-title">Energy Data</h2>
@@ -98,19 +84,6 @@
             </div>
         </div>
     </div>
-    <div class="overalldatatrend">
-        <div class="graph-header">
-            <h2 class="graph-title">Flywheel Energy Trend</h2>
-        </div>
-        <canvas id="flywheelChart"></canvas>
-    </div>
-    <div class="overalldatatrend">
-        <div class="graph-header">
-            <h2 class="graph-title">Power Trend</h2>
-        </div>
-        <canvas id="powerChart"></canvas>
-    </div>
-
 
     <div class="deferablesdash" id="section4">
         <div id="deferables-data">
@@ -128,6 +101,35 @@
         </div>
     </div>
 
+
+    <div class="overalldatatrend" id="section5">
+        <div class="graph-header">
+            <h2 class="graph-title">Flywheel Energy Trend</h2>
+        </div>
+        <canvas id="flywheelChart"></canvas>
+    </div>
+    <div class="overalldatatrend">
+        <div class="graph-header">
+            <h2 class="graph-title">Power Trend</h2>
+        </div>
+        <canvas id="powerChart"></canvas>
+    </div>
+
+    <div class="overalldatatrend">
+        <div class="graph-header">
+            <h2 class="graph-title">Sunshine Intensity Trend</h2>
+        </div>
+        <canvas id="sunChart"></canvas>
+    </div>
+
+    <div class="overalldatatrend">
+        <div class="graph-header">
+            <h2 class="graph-title">Demand Trend</h2>
+        </div>
+        <canvas id="demandChart"></canvas>
+    </div>
+    
+    
     <div class="overalldatatrend" id="section3">
         <h2 class="dashboard-title">Overall Pricing Trend</h2>
         <canvas id="priceChart"></canvas>
@@ -231,17 +233,29 @@
                     label: 'Demand',
                     data: [],
                     borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 2,
+                    borderWidth: 0.2, // Increase line width
+                    pointRadius: 0.02, // Decrease point radius
+                    tension: 0.1, // Reduce line tension for smoother lines
                     fill: false
                 }]
             },
             options: {
                 scales: {
-                    x: { title: { display: true, text: 'Tick' } },
-                    y: { title: { display: true, text: 'Demand (Watts)' } }
+                    x: { 
+                        title: { display: true, text: 'Tick' },
+                        ticks: {
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 20 // Adjust as necessary
+                        }
+                    },
+                    y: { 
+                        title: { display: true, text: 'Demand (Watts)' }
+                    }
                 }
             }
         });
+
         var sunChart = new Chart(sunCtx, {
             type: 'line',
             data: {

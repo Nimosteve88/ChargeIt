@@ -23,12 +23,12 @@ session = Session()
 Base = declarative_base()
 
 power = {
-    'grid_power': '5.5',
-    'pv_power': '3.4'
+    'grid_power': '0.0',
+    'pv_power': '0.0'
 }
 
 demand = {
-    'demand': '2.2'
+    'demand': '0.0'
 }
 
 sunintensity = {
@@ -41,7 +41,7 @@ resevoirpower = {
 
 
 energy = {
-    'flywheel_energy': '6.0'
+    'flywheel_energy': '0.0'
 }
 
 balance_reserve = 0.00
@@ -231,7 +231,7 @@ def train_model():
             df = prepare_features(data)
             if not df.empty:
                 X = df[FEATURE_NAMES]
-                y = (df['sell_price'].shift(-1) > df['sell_price']).astype(int)  # Simplistic approach: 1 if price increases, else 0
+                y = (df['sell_price'].shift(-1) > df['sell_price']).astype(int) 
                 dtrain = xgb.DMatrix(X, label=y, feature_names=FEATURE_NAMES)
                 param = {'max_depth': 3, 'eta': 0.1, 'objective': 'binary:logistic'}
                 num_round = 100
@@ -279,7 +279,9 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
             all_sell_prices = last_10_sell_prices + [current_sell_price]
             all_buy_prices = last_10_buy_prices + [current_buy_price]
 
-            data = [{'tick': i, 'buy_price': buy, 'sell_price': sell, 'day': current_day, 'timestamp': datetime.utcnow()} for i, (buy, sell) in enumerate(zip(all_buy_prices, all_sell_prices))]
+            data = [{'tick': i, 'buy_price': buy, 'sell_price': sell, 
+                     'day': current_day, 'timestamp': datetime.utcnow()} for i, 
+                     (buy, sell) in enumerate(zip(all_buy_prices, all_sell_prices))]
             df = prepare_features(data)
 
             if not df.empty:
@@ -393,6 +395,10 @@ def continuously_fetch_data():
             demand['demand'] = str(demanddata)
             sunintensity['sun'] = str(sun_data_extracted.get('sun'))
             
+            power['grid_power'] = str(random.uniform(0.0, 10.0))
+            power['pv_power'] = str(random.uniform(0.0, 10.0))
+            energy['flywheel_energy'] = str(random.uniform(0.0, 10.0))
+
             current_buy_price = price_data_extracted.get('buy_price', None)
             current_sell_price = price_data_extracted.get('sell_price', None)
             handle_deferables(tick, deferables_data)
