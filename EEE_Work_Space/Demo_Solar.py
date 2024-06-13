@@ -238,7 +238,7 @@ while True:
         timer_elapsed = 0
         
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
-        if count > 2500:
+        if count > 1000:
             data = None
             ip = '192.168.217.92'
             url = 'http://'+ ip +':5000/sun'
@@ -255,27 +255,7 @@ while True:
             
             
             count = 0
- 
-        if count % 1000 == 0:
-            
-            # print("Va = {:.3f}".format(va))
-            # print("Vb = {:.3f}".format(vb))
-            # print("Vpot = {:.3f}".format(vpot))
-            # print("iL = {:.3f}".format(iL))
-            # print("OC = {:b}".format(OC))
-            # print("CL = {:b}".format(CL))
-            # print("BU = {:b}".format(BU))
-            # print("Irradiance = ", irradiance)
-            # #print("trip = {:b}".format(trip))
-            # print("duty = {:d}".format(duty))
-            # print("i_err = {:.3f}".format(i_err))
-            # print("i_err_int = {:.3f}".format(i_err_int))
-            # print("i_pi_out = {:.3f}".format(i_pi_out))
-            # print("i_ref = {:.3f}".format(i_ref))
-            # #print("v_err = {:.3f}".format(v_err))
-            # #print("v_err_int = {:.3f}".format(v_err_int))
-            # #print("v_pi_out = {:.3f}".format(v_pi_out))
-            # #print(v_pot_filt)
+
             datasend = {
                 "Va": va,
                 "Vb": vb,
@@ -295,6 +275,46 @@ while True:
             requests.post('http://' + ip +':5001', json=datasend)
 
             gc.collect()
+ 
+        # if count % 1000 == 0:
+            
+        #     # print("Va = {:.3f}".format(va))
+        #     # print("Vb = {:.3f}".format(vb))
+        #     # print("Vpot = {:.3f}".format(vpot))
+        #     # print("iL = {:.3f}".format(iL))
+        #     # print("OC = {:b}".format(OC))
+        #     # print("CL = {:b}".format(CL))
+        #     # print("BU = {:b}".format(BU))
+        #     # print("Irradiance = ", irradiance)
+        #     # #print("trip = {:b}".format(trip))
+        #     # print("duty = {:d}".format(duty))
+        #     # print("i_err = {:.3f}".format(i_err))
+        #     # print("i_err_int = {:.3f}".format(i_err_int))
+        #     # print("i_pi_out = {:.3f}".format(i_pi_out))
+        #     # print("i_ref = {:.3f}".format(i_ref))
+        #     # #print("v_err = {:.3f}".format(v_err))
+        #     # #print("v_err_int = {:.3f}".format(v_err_int))
+        #     # #print("v_pi_out = {:.3f}".format(v_pi_out))
+        #     # #print(v_pot_filt)
+        #     datasend = {
+        #         "Va": va,
+        #         "Vb": vb,
+        #         "Vpot": vpot,
+        #         "iL": iL,
+        #         "OC": OC,
+        #         "CL": CL,
+        #         "BU": BU,
+        #         "Irradiance": irradiance,
+        #         "duty": duty,
+        #         "i_err": i_err,
+        #         "i_err_int": i_err_int,
+        #         "i_pi_out": i_pi_out,
+        #         "i_ref": i_ref
+        #     }
+
+        #     requests.post('http://' + ip +':5001', json=datasend)
+
+        #     gc.collect()
             
         
 
