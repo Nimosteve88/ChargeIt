@@ -289,7 +289,7 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
                 prediction = model.predict(dmatrix)
 
                 # Use a threshold to decide
-                if prediction > 0.5:
+                if prediction >= 0.6:
                     decision = "BUY"
                     print(f"ML model decision: {decision}")
                     balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
@@ -384,7 +384,7 @@ def continuously_fetch_data():
             tick = price_data_extracted.get('tick', 'N/A')
             demanddata = demand_data_extracted.get('demand', 'N/A')
 
-            if tick == 1:
+            if tick == 1 or tick ==0:
                 update_deferables_data(deferables_data, day, tick)
                 update_yesterday_data(yesterday_data)
 
@@ -564,6 +564,70 @@ def balance_data():
         'balance_reserve': str(balance_reserve)  
     }
     return jsonify(balance_data)
+
+@app.route('/sun-data')
+def sun_data():
+    session = Session()
+    try:
+        result = session.execute(text("""
+            SELECT tick, sun
+            FROM sun_data
+            ORDER BY tick ASC
+        """)).fetchall()
+
+        rows = [dict(row._mapping) for row in result]
+        data = {
+            "ticks": [row['tick'] for row in rows],
+            "sun_values": [row['sun'] for row in rows]
+        }
+        return jsonify(data)
+    finally:
+        session.close()
+
+@app.route('/demand-data')
+def demand_data():
+    session = Session()
+    try:
+        result = session.execute(text("""
+            SELECT tick, demand
+            FROM demand_data
+            ORDER BY tick ASC
+        """)).fetchall()
+
+        rows = [dict(row._mapping) for row in result]
+        data = {
+            "ticks": [row['tick'] for row in rows],
+            "demand_values": [row['demand'] for row in rows]
+        }
+        return jsonify(data)
+    finally:
+        session.close()
+
+from collections import deque
+
+
+tick_queue = deque(maxlen=60)
+flywheel_energy_queue = deque(maxlen=60)
+grid_power_queue = deque(maxlen=60)
+pv_power_queue = deque(maxlen=60)
+
+@app.route('/live-energy-data')
+def live_energy_data():
+    global energy, power, tick_queue, flywheel_energy_queue, grid_power_queue, pv_power_queue
+    current_tick = fetch_data(urls["price"])['tick']
+    tick_queue.append(current_tick)
+    flywheel_energy_queue.append(float(energy['flywheel_energy']))
+    grid_power_queue.append(float(power['grid_power']))
+    pv_power_queue.append(float(power['pv_power']))
+    
+    data = {
+        'ticks': list(tick_queue),
+        'flywheel_energy': list(flywheel_energy_queue),
+        'grid_power': list(grid_power_queue),
+        'pv_power': list(pv_power_queue)
+    }
+    return jsonify(data)
+
 
 if __name__ == "__main__":
     train_thread = threading.Thread(target=train_model)

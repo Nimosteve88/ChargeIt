@@ -15,12 +15,11 @@
         <nav>
             <a href="#section1">Live Feed Data</a>
             <a href="#section2">Energy Data</a>
-            <a href="#section3">Overall Data Trend</a>
+            <a href="#section3">Overall Pricing Trend</a>
             <a href="#section4">Deferables Data</a>
         </nav>
     </header>
 
-    
     <div class="livefeeddata" id="section1">
         <div class="dashboard-header">
             <h2 class="dashboard-title">Live Feed Data</h2>
@@ -29,7 +28,6 @@
             <div id="chart-container">
                 <canvas id="liveChart"></canvas>
             </div>
-
             <div class="info-container">
                 <div class="info-box" id="latest-buy-price">
                     <div class="info-title">Buy Price</div>
@@ -60,15 +58,28 @@
     </div>
 
     <div class="balancedata" id="section5">
-        <h2 class="dashboard-title">Balance </h2>
+        <h2 class="dashboard-title">Balance</h2>
         <div class="balance-data-container">
             <div class="balance-info-box" id="balance-reserve">
-                <!-- <div class="balance-info-title">Balance Reserve</div> -->
                 <div class="balance-info-value">-</div>
             </div>
         </div>
     </div>
-   
+    
+
+    <div class="overalldatatrend">
+        <div class="graph-header">
+            <h2 class="graph-title">Demand Trend</h2>
+        </div>
+        <canvas id="demandChart"></canvas>
+    </div>
+    <div class="overalldatatrend">
+        <div class="graph-header">
+            <h2 class="graph-title">Sunshine Intensity Trend</h2>
+        </div>
+        <canvas id="sunChart"></canvas>
+    </div>
+
 
     <div class="energydata" id="section2">
         <h2 class="dashboard-title">Energy Data</h2>
@@ -87,7 +98,20 @@
             </div>
         </div>
     </div>
-    
+    <div class="overalldatatrend">
+        <div class="graph-header">
+            <h2 class="graph-title">Flywheel Energy Trend</h2>
+        </div>
+        <canvas id="flywheelChart"></canvas>
+    </div>
+    <div class="overalldatatrend">
+        <div class="graph-header">
+            <h2 class="graph-title">Power Trend</h2>
+        </div>
+        <canvas id="powerChart"></canvas>
+    </div>
+
+
     <div class="deferablesdash" id="section4">
         <div id="deferables-data">
             <h2>Deferables Data</h2>
@@ -99,293 +123,386 @@
                         <th>End</th>
                     </tr>
                 </thead>
-                <tbody>
-
-                </tbody>
+                <tbody></tbody>
             </table>
         </div>
     </div>
-    
 
     <div class="overalldatatrend" id="section3">
-        <h2 class="dashboard-title">Overall Data Trend</h2>
+        <h2 class="dashboard-title">Overall Pricing Trend</h2>
         <canvas id="priceChart"></canvas>
     </div>
 
-<script>
-    var ctx = document.getElementById('liveChart').getContext('2d');
-    var liveChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: Array.from({length: 60}, (_, i) => i),  // Generate labels from 0 to 59
-            datasets: [
-                {
-                    label: 'Buy Price',
-                    data: [],
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 2,
-                    fill: false
-                },
-                {
-                    label: 'Sell Price',
-                    data: [],
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    borderWidth: 2,
-                    fill: false
-                }
-            ]
-        },
-        options: {
-            scales: {
-                x: {
-                    beginAtZero: true
-                },
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-
-    var previousValues = {
-    'latest-buy-price': 0,
-    'latest-sell-price': 0
-};
-
-    function updateInfoBox(id, newValue) {
-        var element = document.getElementById(id).querySelector('.info-value');
-        if (element.textContent !== newValue) {
-            element.textContent = newValue;
-            element.classList.remove('increased', 'decreased');
-            if (newValue > previousValues[id]) {
-                element.classList.add('increased');
-            } else if (newValue < previousValues[id]) {
-                element.classList.add('decreased');
-            }
-            previousValues[id] = newValue;
-            element.classList.add('updated');
-            setTimeout(() => {
-                element.classList.remove('updated');
-            }, 500);
-        }
-    }
-
-    // Function to fetch data and update chart
-    function fetchDataAndUpdateChart() {
-    fetch('/data')
-        .then(response => response.json())
-        .then(data => {
-            // Filter out duplicate ticks
-            var uniqueTicks = data.ticks.filter((tick, index, self) => self.indexOf(tick) === index);
-
-            // Update the chart's labels and data with the unique ticks and corresponding buy and sell prices
-            //liveChart.data.labels = uniqueTicks;
-            liveChart.data.labels = data.ticks;
-            liveChart.data.datasets[0].data = data.buy_prices;
-            liveChart.data.datasets[1].data = data.sell_prices;
-            liveChart.update();
-
-            // Update the latest prices and other information
-            updateInfoBox('latest-buy-price', data.buy_prices[data.buy_prices.length - 1] || '-');
-            updateInfoBox('latest-sell-price', data.sell_prices[data.sell_prices.length - 1]);
-            updateInfoBox('current-demand', data.current_demand);
-            updateInfoBox('current-day', data.current_day);
-            updateInfoBox('current-sun', data.current_sun);
-        });
-}
-
-    function fetchDecision(){
-        fetch('/decision')
-            .then(response => response.json())
-            .then(data => {
-                updateInfoBox('trading-decision', data.decision || '-');
-            });
-    }
-
-    // Fetch data and update chart every second
-    setInterval(fetchDataAndUpdateChart, 5000);
-
-    // Fetch trading decision every 4.7 seconds
-    setInterval(fetchDecision, 4700)
-</script>
-
-<script>
-    var ctx = document.getElementById('priceChart').getContext('2d');
-    var priceChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [
-                {
-                    label: 'Cumulative Average Buy Price',
-                    data: [],
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 2,
-                    fill: false
-                },
-                {
-                    label: 'Cumulative Average Sell Price',
-                    data: [],
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    borderWidth: 2,
-                    fill: false
-                }
-                // {
-                //     label: 'Cumulative Average Demand',
-                //     data: [],
-                //     borderColor: 'rgba(54, 162, 235, 1)',
-                //     borderWidth: 2,
-                //     fill: false
-                // },
-                // {
-                //     label: 'Average Buy Price per Tick',
-                //     data: [],
-                //     borderColor: 'rgba(153, 102, 255, 1)',
-                //     borderWidth: 2,
-                //     fill: false
-                // }
-                
-            ]
-        },
-        options: {
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Tick'
+    <script>
+        var ctx = document.getElementById('liveChart').getContext('2d');
+        var liveChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 60}, (_, i) => i),  // Generate labels from 0 to 59
+                datasets: [
+                    {
+                        label: 'Buy Price',
+                        data: [],
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 2,
+                        fill: false
+                    },
+                    {
+                        label: 'Sell Price',
+                        data: [],
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 2,
+                        fill: false
                     }
-                },
-                y: {
-                    title: {
-                        display: true,
-                        text: 'Price'
-                    }
-                }
+                ]
             },
-            plugins: {
-                zoom: {
-                    pan: {
-                        enabled: true,
-                        mode: 'x',
-                        onPanComplete({chart}) {
-                            // Fetch new data when panning is complete
-                            updateChart();
+            options: {
+                scales: {
+                    x: {
+                        beginAtZero: true
+                    },
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    
+        var previousValues = {
+            'latest-buy-price': 0,
+            'latest-sell-price': 0
+        };
+    
+        function updateInfoBox(id, newValue) {
+            var element = document.getElementById(id).querySelector('.info-value');
+            if (element.textContent !== newValue) {
+                element.textContent = newValue;
+                element.classList.remove('increased', 'decreased');
+                if (newValue > previousValues[id]) {
+                    element.classList.add('increased');
+                } else if (newValue < previousValues[id]) {
+                    element.classList.add('decreased');
+                }
+                previousValues[id] = newValue;
+                element.classList.add('updated');
+                setTimeout(() => {
+                    element.classList.remove('updated');
+                }, 500);
+            }
+        }
+    
+        function fetchDataAndUpdateChart() {
+            fetch('/data')
+                .then(response => response.json())
+                .then(data => {
+                    var uniqueTicks = data.ticks.filter((tick, index, self) => self.indexOf(tick) === index);
+                    liveChart.data.labels = data.ticks;
+                    liveChart.data.datasets[0].data = data.buy_prices;
+                    liveChart.data.datasets[1].data = data.sell_prices;
+                    liveChart.update();
+                    updateInfoBox('latest-buy-price', data.buy_prices[data.buy_prices.length - 1] || '-');
+                    updateInfoBox('latest-sell-price', data.sell_prices[data.sell_prices.length - 1]);
+                    updateInfoBox('current-demand', data.current_demand);
+                    updateInfoBox('current-day', data.current_day);
+                    updateInfoBox('current-sun', data.current_sun);
+                });
+        }
+    
+        function fetchDecision() {
+            fetch('/decision')
+                .then(response => response.json())
+                .then(data => {
+                    updateInfoBox('trading-decision', data.decision || '-');
+                });
+        }
+    
+        setInterval(fetchDataAndUpdateChart, 5000);
+        setInterval(fetchDecision, 4700);
+    </script>
+    
+    <script>
+        var sunDemandCtx = document.getElementById('demandChart').getContext('2d');
+        var sunCtx = document.getElementById('sunChart').getContext('2d');
+        var demandChart = new Chart(sunDemandCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Demand',
+                    data: [],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 2,
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: { title: { display: true, text: 'Tick' } },
+                    y: { title: { display: true, text: 'Demand (Watts)' } }
+                }
+            }
+        });
+        var sunChart = new Chart(sunCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Sunshine Intensity',
+                    data: [],
+                    borderColor: 'rgba(255, 206, 86, 1)',
+                    borderWidth: 2,
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: { title: { display: true, text: 'Tick' } },
+                    y: { title: { display: true, text: 'Sunshine Intensity (%)' } }
+                }
+            }
+        });
+    
+        function fetchSunDemandData() {
+            Promise.all([fetch('/sun-data'), fetch('/demand-data')])
+                .then(responses => Promise.all(responses.map(response => response.json())))
+                .then(([sunData, demandData]) => {
+                    sunChart.data.labels = sunData.ticks;
+                    sunChart.data.datasets[0].data = sunData.sun_values;
+                    sunChart.update();
+                    demandChart.data.labels = demandData.ticks;
+                    demandChart.data.datasets[0].data = demandData.demand_values;
+                    demandChart.update();
+                });
+        }
+    
+        setInterval(fetchSunDemandData, 5000);
+    </script>
+    
+    <script>
+        var flywheelCtx = document.getElementById('flywheelChart').getContext('2d');
+        var powerCtx = document.getElementById('powerChart').getContext('2d');
+        var flywheelChart = new Chart(flywheelCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Flywheel Energy',
+                    data: [],
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2,
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: { title: { display: true, text: 'Tick' } },
+                    y: { title: { display: true, text: 'Energy (Joules)' } }
+                }
+            }
+        });
+        var powerChart = new Chart(powerCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Grid Power',
+                        data: [],
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 2,
+                        fill: false
+                    },
+                    {
+                        label: 'PV Power',
+                        data: [],
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 2,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                scales: {
+                    x: { title: { display: true, text: 'Tick' } },
+                    y: { title: { display: true, text: 'Power (Watts)' } }
+                }
+            }
+        });
+    
+        function fetchEnergyData() {
+            fetch('/live-energy-data')
+                .then(response => response.json())
+                .then(data => {
+                    flywheelChart.data.labels = data.ticks;
+                    flywheelChart.data.datasets[0].data = data.flywheel_energy;
+                    flywheelChart.update();
+                    powerChart.data.labels = data.ticks;
+                    powerChart.data.datasets[0].data = data.grid_power;
+                    powerChart.data.datasets[1].data = data.pv_power;
+                    powerChart.update();
+                });
+        }
+    
+        setInterval(fetchEnergyData, 5000);
+    </script>
+    
+    
+    <script>
+        function updateEnergyInfoBox(id, newValue) {
+            var element = document.getElementById(id).querySelector('.energy-info-value');
+            if (element.textContent !== newValue) {
+                element.textContent = newValue;
+                element.classList.add('updated');
+                setTimeout(() => {
+                    element.classList.remove('updated');
+                }, 500);
+            }
+        }
+    
+        function fetchEnergyDataInfo() {
+            fetch('/energy-data')
+                .then(response => response.json())
+                .then(data => {
+                    updateEnergyInfoBox('flywheel_energy', data.flywheel_energy || '-');
+                    updateEnergyInfoBox('grid_power', data.grid_power || '-');
+                    updateEnergyInfoBox('pv_power', data.pv_power || '-');
+                });
+        }
+    
+        setInterval(fetchEnergyDataInfo, 5000);
+    </script>
+    
+    <script>
+        function updateDeferablesData() {
+            fetch('/deferables')
+                .then(response => response.json())
+                .then(data => {
+                    var tableBody = document.getElementById('deferables-table').querySelector('tbody');
+                    tableBody.innerHTML = '';  // Clear the table body
+    
+                    data.forEach(item => {
+                        var row = document.createElement('tr');
+                        row.innerHTML = `<td>${item.energy}</td><td>${item.start}</td><td>${item.end}</td>`;
+                        tableBody.appendChild(row);
+                    });
+                });
+        }
+    
+        setInterval(updateDeferablesData, 5000);
+    </script>
+    
+    <script>
+        var previousBalanceValue = 0;
+    
+        function formatBalance(value) {
+            let isNegative = value < 0;
+            value = Math.abs(value);
+            if (value >= 100) {
+                let pounds = (value / 100).toFixed(2);
+                return `${isNegative ? '-' : ''}£${pounds}`;
+            } else {
+                return `${isNegative ? '-' : ''}${value}p`;
+            }
+        }
+    
+        function updateBalanceInfoBox(id, newValue) {
+            var element = document.getElementById(id).querySelector('.balance-info-value');
+            var formattedValue = formatBalance(newValue);
+            if (element.textContent !== formattedValue) {
+                element.textContent = formattedValue;
+                element.classList.remove('increased', 'decreased');
+                if (newValue > previousBalanceValue) {
+                    element.classList.add('increased');
+                } else if (newValue < previousBalanceValue) {
+                    element.classList.add('decreased');
+                }
+                previousBalanceValue = newValue;
+                element.classList.add('updated');
+                setTimeout(() => {
+                    element.classList.remove('updated');
+                }, 500);
+            }
+        }
+    
+        function fetchBalanceData() {
+            fetch('/balance-data')
+                .then(response => response.json())
+                .then(data => {
+                    updateBalanceInfoBox('balance-reserve', data.balance_reserve || 0);
+                });
+        }
+    
+        setInterval(fetchBalanceData, 1000);
+    </script>
+    
+    <script>
+        var ctx = document.getElementById('priceChart').getContext('2d');
+        var priceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Cumulative Average Buy Price',
+                        data: [],
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 2,
+                        fill: false
+                    },
+                    {
+                        label: 'Cumulative Average Sell Price',
+                        data: [],
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 2,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Tick'
                         }
                     },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Price'
+                        }
+                    }
+                },
+                plugins: {
                     zoom: {
-                        enabled: false  // Disable zooming
+                        pan: {
+                            enabled: true,
+                            mode: 'x',
+                            onPanComplete({chart}) {
+                                updateChart();
+                            }
+                        },
+                        zoom: {
+                            enabled: false
+                        }
                     }
                 }
             }
-        }
-    });
-    function updateChart() {
-        fetch('/alldata')
-            .then(response => response.json())
-            .then(data => {
-                priceChart.data.labels = data.ticks;
-                priceChart.data.datasets[0].data = data.cumulative_buy_avg;
-                priceChart.data.datasets[1].data = data.cumulative_sell_avg;
-                priceChart.update();
-            });
-    }
-    setInterval(updateChart, 6000);
-</script>
-<script>
-    function updateEnergyInfoBox(id, newValue) {
-    var element = document.getElementById(id).querySelector('.energy-info-value');
-    if (element.textContent !== newValue) {
-        element.textContent = newValue;
-        element.classList.add('updated');
-        setTimeout(() => {
-            element.classList.remove('updated');
-        }, 500);
-    }
-}
-    // Function to fetch and update energy data
-    function fetchEnergyData() {
-        fetch('/energy-data')
-            .then(response => response.json())
-            .then(data => {
-                updateEnergyInfoBox('flywheel_energy', data.flywheel_energy || '-');
-                updateEnergyInfoBox('grid_power', data.grid_power || '-');
-                updateEnergyInfoBox('pv_power', data.pv_power || '-');
-            });
-    }
+        });
     
-    // Fetch energy data every 5 seconds
-    setInterval(fetchEnergyData, 5000);
-</script>
-
-<script>
-    function updateDeferablesData() {
-        fetch('/deferables')
-            .then(response => response.json())
-            .then(data => {
-                var tableBody = document.getElementById('deferables-table').querySelector('tbody');
-                tableBody.innerHTML = '';  // Clear the table body
-
-                // Create a new row for each item in the data
-                data.forEach(item => {
-                    var row = document.createElement('tr');
-                    row.innerHTML = `<td>${item.energy}</td><td>${item.start}</td><td>${item.end}</td>`;
-                    tableBody.appendChild(row);
+        function updateChart() {
+            fetch('/alldata')
+                .then(response => response.json())
+                .then(data => {
+                    priceChart.data.labels = data.ticks;
+                    priceChart.data.datasets[0].data = data.cumulative_buy_avg;
+                    priceChart.data.datasets[1].data = data.cumulative_sell_avg;
+                    priceChart.update();
                 });
-            });
-    }
-
-    // Call this function every few seconds to keep the data updated
-    setInterval(updateDeferablesData, 5000);  // 5000 ms = 5 seconds
-</script>
-
-<script>
-    var previousBalanceValue = 0;
-
-    function formatBalance(value) {
-        let isNegative = value < 0;
-        value = Math.abs(value);
-        if (value >= 100) {
-            let pounds = (value / 100).toFixed(2);
-            return `${isNegative ? '-' : ''}£${pounds}`;
-        } else {
-            return `${isNegative ? '-' : ''}${value}p`;
         }
-    }
-
-    function updateBalanceInfoBox(id, newValue) {
-        var element = document.getElementById(id).querySelector('.balance-info-value');
-        var formattedValue = formatBalance(newValue);
-        if (element.textContent !== formattedValue) {
-            element.textContent = formattedValue;
-            element.classList.remove('increased', 'decreased');
-            if (newValue > previousBalanceValue) {
-                element.classList.add('increased');
-            } else if (newValue < previousBalanceValue) {
-                element.classList.add('decreased');
-            }
-            previousBalanceValue = newValue;
-            element.classList.add('updated');
-            setTimeout(() => {
-                element.classList.remove('updated');
-            }, 500);
-        }
-    }
-
-    // Function to fetch and update balance data
-    function fetchBalanceData() {
-        fetch('/balance-data')
-            .then(response => response.json())
-            .then(data => {
-                updateBalanceInfoBox('balance-reserve', data.balance_reserve || 0);
-            });
-    }
-
-    // Fetch balance data every 5 seconds
-    setInterval(fetchBalanceData, 1000);
-</script>
-
-
-
-
+    
+        setInterval(updateChart, 6000);
+    </script>
+    
 </body>
 </html>
