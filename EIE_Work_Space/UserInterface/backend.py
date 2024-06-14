@@ -349,6 +349,13 @@ def handle_deferables(tick, deferables_data):
             elif tick > deferables_data[i]['end']:
                 # add logic to remove an item from a array
                 deferables_data.pop(i)
+                # session = Session()
+                # try:
+                #     session.query(DeferablesData).filter(DeferablesData.id == i).delete()
+                #     session.commit()
+                # except IntegrityError as e:
+                #     session.rollback()
+                #     print(f"Error deleting deferable data: {e}")
     else:
         #if array is empty meaning all deferables are satisfied
         pass
@@ -397,7 +404,7 @@ def continuously_fetch_data():
             
             power['grid_power'] = str(random.uniform(0.0, 10.0))
             power['pv_power'] = str(random.uniform(0.0, 10.0))
-            energy['flywheel_energy'] = str(random.uniform(0.0, 10.0))
+            #energy['flywheel_energy'] = str(random.uniform(0.0, 10.0))
 
             current_buy_price = price_data_extracted.get('buy_price', None)
             current_sell_price = price_data_extracted.get('sell_price', None)
