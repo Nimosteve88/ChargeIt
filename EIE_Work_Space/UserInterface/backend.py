@@ -402,8 +402,8 @@ def continuously_fetch_data():
             demand['demand'] = str(demanddata)
             sunintensity['sun'] = str(sun_data_extracted.get('sun'))
             
-            power['grid_power'] = str(random.uniform(0.0, 10.0))
-            power['pv_power'] = str(random.uniform(0.0, 10.0))
+            # power['grid_power'] = str(random.uniform(0.0, 10.0))
+            # power['pv_power'] = str(random.uniform(0.0, 10.0))
             #energy['flywheel_energy'] = str(random.uniform(0.0, 10.0))
 
             current_buy_price = price_data_extracted.get('buy_price', None)
