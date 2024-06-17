@@ -54,7 +54,8 @@ pwm = PWM(Pin(0))
 pwm.freq(100000)
 pwm_en = Pin(1, Pin.OUT)
 
-pid = PID(0.16, 11, 0, setpoint=0.25, scale='ms')
+pid = PID(0.0001312335958, 100, 0, setpoint = 0.7, scale='ms')
+#pid = PID(0.2, 10.9, 0, setpoint=0.4, scale='ms')
 #pidvout = PID(0.2, 10, 0, setpoint= 3, scale='ms')
 
 
@@ -69,6 +70,7 @@ setpoint = 0
 delta = 0.01
 
 ip = '192.168.217.92'
+
 
 max_power = pid.setpoint
 min_power = pid.setpoint
@@ -128,6 +130,7 @@ def make_request():
     
 def send_data(value):
     ben = 2
+    7.62
     
     
     
@@ -140,13 +143,14 @@ while True:
         # This starts a 1kHz timer which we use to control the execution of the control loops and sampling
         loop_timer = Timer(mode=Timer.PERIODIC, freq=1000, callback=tick)
         #thr.start_new_thread(make_request, ())
-        #print('asdasda')
+        print('asdasda')
     
         # If the timer has elapsed it will execute some functions, otherwise it skips everything and repeats until the timer elapses
     #
     if timer_elapsed == 1:
         pid.setpoint = setpoint
         pwm_en.value(1)
+        timer_elapsed = 0
 
         vin = 1.026*(12490/2490)*3.3*(vin_pin.read_u16()/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
         vout = 1.026*(12490/2490)*3.3*(vout_pin.read_u16()/65536) # calibration factor * potential divider ratio * ref voltage * digital reading
@@ -188,28 +192,9 @@ while True:
         pwm_out = saturate(pwm_ref)
         pwm.duty_u16(pwm_out)
         
-        if count > 4000:
-            if ledpower > max_power:
-                max_power = ledpower
-            
-            if ledpower < min_power:
-                min_power = ledpower
-            
-
-            
-       # if c2 > 1:
-       #     if elapsedtime < 1000:
-       #         with open("LED_power.txt", "a") as file:
-       #             file.write("{:d},{:.3f}\n".format(elapsedtime, ledpower))
-       #     c2 = 0
-            #print("ben")
-        
-
         
         
-        
-        if count % 1000 == 0:
-            
+        if count % 5000 == 0:
             data = None
             ip = '192.168.217.92'
             url = 'http://'+ip+':5000/demand'
@@ -222,16 +207,34 @@ while True:
             demand = float(data['demand'])
             #print('DEMAND', demand)
             setpoint = demand / 4
-            print("Vin = {:.3f}".format(vin))
-            print("Vout = {:.3f}".format(vout))
-            print("Vled = {:.3f}".format(vled))
-            print("Vret = {:.3f}".format(vret))
-            print("Duty = {:.0f}".format(pwm_out))
-            print("iout = {:.3f}".format(iout))
-            print("ledpower = {:.4f}".format(ledpower), "maxpower = {:.4f}".format(max_power),"minpower = {:.4f}".format(min_power))
+            pwm.duty_u16(pwm_out)
+            
+            
+       # if c2 > 1:
+       #     if elapsedtime < 1000:
+       #         with open("LED_power.txt", "a") as file:
+       #             file.write("{:d},{:.3f}\n".format(elapsedtime, ledpower))
+       #     c2 = 0
+            #print("ben")
+        
+
+        
+        
+        
+        if count % 100 == 0:
+            
+            
+            #print("Vin = {:.3f}".format(vin))
+            #print("Vout = {:.3f}".format(vout))
+            #print("Vled = {:.3f}".format(vled))
+            #print("Vret = {:.3f}".format(vret))
+            #print("Duty = {:.0f}".format(pwm_out))
+            #print("iout = {:.3f}".format(iout))
+            print("ledpower = {:.4f}".format(ledpower), "setpoint = {:.4f}".format(pid.setpoint))
+            #print("PWM_REF = {:.0f}".format(pwm_ref))
             # print("integral error = ", pid._integral)
-            # print("setpoint = {:.3f}".format(setpoint))
-            print(demand/4)
+            #print("setpoint = {:.3f}".format(pid.setpoint))
+            #print(demand/4)
             
             #start_time = utime.ticks_ms()
                 
@@ -252,7 +255,7 @@ while True:
             #duration = utime.ticks_diff(end_time, start_time)
             #print('The Sending took', duration, 'milliseconds')
             
-            timer_elapsed = 0
+            
         
         
             
@@ -268,6 +271,8 @@ while True:
             
         pid.setpoint = setpoint
         '''
+
+
 
 
 
