@@ -196,7 +196,10 @@ while True:
         iL = Vshunt/SHUNT_OHMS
         pwm_ref = saturate(65536-(int((vpot/3.3)*65536)),max_pwm,min_pwm) # convert the pot value to a PWM value for use later
         max_power = 4.6
-        max_current = max_power / vb
+        if vb == 0:
+            max_current = max_power / 6.9
+        else:
+            max_current = max_power / vb
               
         if CL != 1: # Buck-OL Open loop so just limit the current but otherwise pass through the reference directly as a duty cycle
             i_err_int = 0 #reset integrator
