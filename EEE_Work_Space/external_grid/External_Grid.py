@@ -192,7 +192,7 @@ while True:
         timer_elapsed = 0
         
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
-        if count > 1000:
+        if count > 500:
             print("--------------------------------")
             print("Va = {:.3f}".format(va))
             print("Vb = {:.3f}".format(vb))
@@ -212,3 +212,4 @@ while True:
             #print("v_pi_out = {:.3f}".format(v_pi_out))
             #print(v_pot_filt)
             count = 0
+
