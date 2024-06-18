@@ -137,6 +137,11 @@ def update_deferables_data(deferables_data, day, tick):
             new_data = DeferablesData(demand=deferable['energy'], day=day, tick=tick)
             session.add(new_data)
         session.commit()
+        session.execute(text("""
+            DELETE FROM deferables_data a USING deferables_data b WHERE a.id < b.id 
+                             AND a.demand = b.demand AND a.day = b.day AND a.tick = b.tick
+        """))
+        
     except IntegrityError as e:
         session.rollback()
         print(f"Error updating deferables_data: {e}")
