@@ -1,4 +1,55 @@
 from machine import Pin, I2C, ADC, PWM, Timer
+import urequests as requests 
+import network
+import utime
+import gc
+
+##########################WIFI CONNECTION##########################
+ssid = 'SteveGalaxy'
+password = 'ChargeIt'
+
+# Set WiFi to station interface
+wlan = network.WLAN(network.STA_IF)
+# Activate the network interface
+wlan.active(True)
+
+# Check if already connected
+while not wlan.isconnected():
+    print('Connecting to network...')
+    wlan.connect(ssid, password)
+
+    max_wait = 10
+    # Wait for connection
+    while max_wait > 0:
+        if wlan.status() < 0 or wlan.status() >= 3:
+            # Connection successful
+            break
+        max_wait -= 1
+        print('Waiting for connection... ' + str(max_wait))
+        utime.sleep(1)
+
+    # Check connection
+    #if wlan.status() != 3:
+        # No connection
+        #raise RuntimeError('Network connection failed')
+        #continue
+#else:
+ #   print('Already connected to network')
+
+
+# Connection successful
+print('WLAN connected')
+status = wlan.ifconfig()
+pico_ip = status[0]
+print('IP = ' + status[0])
+
+
+irradiance = 0 # initialise irradiance
+ip = '192.168.217.92'
+
+
+
+##########################WIFI CONNECTION##########################
 
 # Set up some pin allocations for the Analogues and switches
 va_pin = ADC(Pin(28))
@@ -142,6 +193,7 @@ while True:
         max_pwm = 64536
         iL = Vshunt/SHUNT_OHMS
         pwm_ref = saturate(65536-(int((vpot/3.3)*65536)),max_pwm,min_pwm) # convert the pot value to a PWM value for use later
+        gridpower = iL * vb
               
         if CL != 1: # Buck-OL Open loop so just limit the current but otherwise pass through the reference directly as a duty cycle
             i_err_int = 0 #reset integrator
@@ -212,4 +264,13 @@ while True:
             #print("v_pi_out = {:.3f}".format(v_pi_out))
             #print(v_pot_filt)
             count = 0
+
+            datasend = {
+                "grid_power": gridpower,
+                
+            }
+
+            requests.post('http://' + ip +':5000/power', json=datasend)
+
+            gc.collect()
 
