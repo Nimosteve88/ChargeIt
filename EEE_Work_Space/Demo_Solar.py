@@ -196,7 +196,12 @@ while True:
         iL = Vshunt/SHUNT_OHMS
         pwm_ref = saturate(65536-(int((vpot/3.3)*65536)),max_pwm,min_pwm) # convert the pot value to a PWM value for use later
         max_power = 4.6
-        max_current = max_power / vb
+        if vb == 0:
+            max_current = max_power / 6.9
+        else:
+            max_current = max_power / vb
+
+        pvpower = iL * vb
               
         if CL != 1: # Buck-OL Open loop so just limit the current but otherwise pass through the reference directly as a duty cycle
             i_err_int = 0 #reset integrator
@@ -240,7 +245,6 @@ while True:
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
         if count > 1000:
             data = None
-            ip = '192.168.217.92'
             url = 'http://'+ ip +':5000/sun'
             response = requests.get(url)
 
@@ -257,22 +261,11 @@ while True:
             count = 0
 
             datasend = {
-                "Va": va,
-                "Vb": vb,
-                "Vpot": vpot,
-                "iL": iL,
-                "OC": OC,
-                "CL": CL,
-                "BU": BU,
-                "Irradiance": irradiance,
-                "duty": duty,
-                "i_err": i_err,
-                "i_err_int": i_err_int,
-                "i_pi_out": i_pi_out,
-                "i_ref": i_ref
+                "pv_power": pvpower,
+                
             }
 
-            requests.post('http://' + ip +':5001', json=datasend)
+            requests.post('http://' + ip +':5000/power', json=datasend)
 
             gc.collect()
  
