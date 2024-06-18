@@ -255,7 +255,7 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
             indicator = 1
         else:
             if abs(remaining_power) > float(energy['flywheel_energy']):
-                discharge_flywheel(float(energy['flywheel_energy']))
+                discharge_flywheel(-float(energy['flywheel_energy']))
                 initial_decision = "BUY"
                 decision = "BUY"
                 balance_reserve -= current_buy_price * (abs(remaining_power) - float(energy['flywheel_energy']))
@@ -303,7 +303,7 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
                     print(f"ML model decision: {decision}, model prediction: {prediction}")
                     balance_reserve += float(current_buy_price) * float(energy['flywheel_energy'])
                     balance_reserve = round(balance_reserve)
-                    discharge_flywheel(float(energy['flywheel_energy']) / 2)  # Incremental discharge
+                    discharge_flywheel(-float(energy['flywheel_energy']) / 2)  # Incremental discharge
                 else:
                     decision = "HOLD"
                     print(f"ML model decision: {decision}, model prediction: {prediction}")
@@ -335,7 +335,7 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
 
 def discharge_flywheel(amount):
     # logic to discharge flywheel/capacitor
-    resevoirpower['resevoirpower'] = '-'+str(amount)
+    resevoirpower['resevoirpower'] = str(amount)
     pass
 def charge_flywheel(amount):
     # logic to charge flywheel/capacitor
