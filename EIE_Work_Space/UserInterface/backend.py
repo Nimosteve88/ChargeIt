@@ -23,8 +23,7 @@ session = Session()
 Base = declarative_base()
 
 power = {
-    'grid_power': '0.0',
-    'pv_power': '0.0'
+    'gridpower': '0.0'
 }
 
 demand = {
@@ -35,17 +34,20 @@ sunintensity = {
     'sun': '0'
 }
 
-resevoirpower = {
-    'resevoirpower': '0.0'
+resevoir = {
+    'resevoirpower': '0.0',
+    'resevoirenergy': '0.0'
 }
 
 
 energy = {
-    'flywheel_energy': '0.0'
+    'flywheel_energy': '0.0',
+    'pv_power': '0.0'
 }
 
 balance_reserve = 0.00
 deferable_power = 0.0
+
 
 # Define table structures
 class PriceData(Base):
@@ -255,7 +257,7 @@ def train_model():
 
 def combined_strategy(current_day, current_tick, current_buy_price, current_sell_price):
     global power, demand, energy, balance_reserve, decision, indicator, deferable_power, model
-    remaining_power = float(power['pv_power']) - (float(demand['demand']) + deferable_power) 
+    remaining_power = float(energy['pv_power']) - (float(demand['demand']) + deferable_power) 
     #remaining_power = 5.0     # Use this if you want to test ML model
     initial_decision = None
     # Initial demand strategy logic
@@ -267,11 +269,11 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
             balance_reserve = round(balance_reserve)
             indicator = 1
         else: #storage not empty
-            if (abs(remaining_power) * 5)> float(energy['flywheel_energy']): #required power more than storage
-                discharge_flywheel(-float(energy['flywheel_energy'])/5)
+            if (abs(remaining_power) * 5)> float(resevoir['resevoirenergy']): #required power more than storage
+                discharge_flywheel(-float(resevoir['resevoirenergy'])/5)
                 initial_decision = "BUY"
                 decision = "BUY"
-                balance_reserve -= current_buy_price * (abs(remaining_power) - (float(energy['flywheel_energy'])/5))
+                balance_reserve -= current_buy_price * (abs(remaining_power) - (float(resevoir['resevoirenergy'])/5))
                 balance_reserve = round(balance_reserve)
                 indicator = 1
             else:
@@ -314,9 +316,9 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
                 elif prediction <= 0.5:
                     decision = "SELL"
                     print(f"ML model decision: {decision}, model prediction: {prediction}")
-                    balance_reserve += float(current_buy_price) * float(energy['flywheel_energy']) / 5
+                    balance_reserve += float(current_buy_price) * float(resevoir['resevoirenergy']) / 5
                     balance_reserve = round(balance_reserve)
-                    discharge_flywheel(-float(energy['flywheel_energy']) / 10)  # Incremental discharge
+                    discharge_flywheel(-float(resevoir['resevoirenergy']) / 10)  # Incremental discharge
                 else:
                     decision = "HOLD"
                     print(f"ML model decision: {decision}, model prediction: {prediction}")
@@ -348,11 +350,11 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
 
 def discharge_flywheel(amount):
     # logic to discharge flywheel/capacitor
-    resevoirpower['resevoirpower'] = str(amount)
+    resevoir['resevoirpower'] = str(amount)
     pass
 def charge_flywheel(amount):
     # logic to charge flywheel/capacitor
-    resevoirpower['resevoirpower'] = str(amount)
+    resevoir['resevoirpower'] = str(amount)
     pass
 
 indicator = 0
@@ -548,6 +550,14 @@ def get_demand():
             demand['demand'] = data['demand']
         return jsonify({'message': 'Data updated', 'data': demand}), 200
     
+@app.route('/gridpower', methods=['POST'])
+def get_grid():
+    if request.method == 'POST':
+        data = request.json
+        if 'gridpower' in data:
+            power['gridpower'] = data['gridpower']
+        return jsonify({'message': 'Data updated', 'data': power}), 200
+    
 @app.route('/sun', methods=['GET', 'POST'])
 def get_sun():
     global sunintensity
@@ -566,17 +576,18 @@ def get_energy():
         return jsonify(energy)
     elif request.method == 'POST':
         data = request.json
-        if 'flywheel_energy' in data:
-            energy['flywheel_energy'] = data['flywheel_energy']
+        if 'pv_power' in data:
+            energy['pv_power'] = data['pv_power']
+            # energy['flywheel_energy'] = data['flywheel_energy']
         return jsonify({'message': 'Data updated', 'data': energy}), 200
 
 @app.route('/energy-data')
 def get_energy_data():
     global energy, power
     data = {
-        'flywheel_energy': energy['flywheel_energy'],
-        'grid_power': power['grid_power'],
-        'pv_power': power['pv_power']
+        'flywheel_energy': resevoir['resevoirenergy'],
+        'grid_power': power['gridpower'],
+        'pv_power': energy['pv_power']
     }
     return jsonify(data)
 
@@ -585,13 +596,13 @@ def get_resevoirpower():
     global resevoirpower
     if request.method == 'GET':
         # Return the current resevoir power
-        return jsonify(resevoirpower)
+        return jsonify(resevoir)
     elif request.method == 'POST':
         # Update the resevoir power with the new data from the request
         data = request.json
-        if 'resevoirpower' in data:
-            resevoirpower['resevoirpower'] = data['resevoirpower']
-        return jsonify({'message': 'Data updated', 'data': resevoirpower}), 200
+        if 'resevoirenergy' in data:
+            resevoir['resevoirenergy'] = data['resevoirenergy']
+        return jsonify({'message': 'Data updated', 'data': resevoir}), 200
 
 def update_deferables_data(deferables_data, day, tick):
     session = Session()
@@ -626,6 +637,8 @@ def balance_data():
         'balance_reserve': str(balance_reserve)  
     }
     return jsonify(balance_data)
+
+
 
 @app.route('/sun-data')
 def sun_data():
@@ -678,9 +691,9 @@ def live_energy_data():
     global energy, power, tick_queue, flywheel_energy_queue, grid_power_queue, pv_power_queue
     current_tick = fetch_data(urls["price"])['tick']
     tick_queue.append(current_tick)
-    flywheel_energy_queue.append(float(energy['flywheel_energy']))
-    grid_power_queue.append(float(power['grid_power']))
-    pv_power_queue.append(float(power['pv_power']))
+    flywheel_energy_queue.append(float(resevoir['resevoirenergy']))
+    grid_power_queue.append(float(power['gridpower']))
+    pv_power_queue.append(float(energy['pv_power']))
     
     data = {
         'ticks': list(tick_queue),

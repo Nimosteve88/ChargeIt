@@ -54,7 +54,7 @@ pwm = PWM(Pin(0))
 pwm.freq(100000)
 pwm_en = Pin(1, Pin.OUT)
 
-pid = PID(0.0001312335958, 100, 0, setpoint = 0.7, scale='ms')
+pid = PID(0.0001312335958, 10, 0, setpoint = 0.2, scale='ms')
 #pid = PID(0.2, 10.9, 0, setpoint=0.4, scale='ms')
 #pidvout = PID(0.2, 10, 0, setpoint= 3, scale='ms')
 
@@ -128,9 +128,6 @@ def make_request():
         #count = 0
         #setpoint = setpoint + delta
     
-def send_data(value):
-    ben = 2
-    7.62
     
     
     
@@ -196,7 +193,6 @@ while True:
         
         if count % 5000 == 0:
             data = None
-            ip = '192.168.217.92'
             url = 'http://'+ip+':5000/demand'
             response = requests.get(url)
             if response.status_code == 200:
@@ -221,7 +217,7 @@ while True:
         
         
         
-        if count % 100 == 0:
+        #if count % 100 == 0:
             
             
             #print("Vin = {:.3f}".format(vin))
@@ -230,7 +226,7 @@ while True:
             #print("Vret = {:.3f}".format(vret))
             #print("Duty = {:.0f}".format(pwm_out))
             #print("iout = {:.3f}".format(iout))
-            print("ledpower = {:.4f}".format(ledpower), "setpoint = {:.4f}".format(pid.setpoint))
+            #print("ledpower = {:.4f}".format(ledpower), "setpoint = {:.4f}".format(pid.setpoint))
             #print("PWM_REF = {:.0f}".format(pwm_ref))
             # print("integral error = ", pid._integral)
             #print("setpoint = {:.3f}".format(pid.setpoint))
