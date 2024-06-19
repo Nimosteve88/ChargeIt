@@ -188,7 +188,7 @@ while True:
         pwm_ref = saturate(65536-(int((vpot/3.3)*65536)),max_pwm,min_pwm) # convert the pot value to a PWM value for use later
         
         #Energy calculations
-        energy = 0.5*capacitance*va*va
+        energy = 0.5*capacitance*va*va - 12.6
               
         if CL != 1: # Buck-OL Open loop so just limit the current but otherwise pass through the reference directly as a duty cycle
             i_err_int = 0 #reset integrator
@@ -227,8 +227,8 @@ while True:
             pwm.duty_u16(duty) # now we output the pwm
             
         else: # Closed Loop Current Control
-            #i_ref = resevoirpower /vb        
-            i_ref = -saturate(vpot-1.66, 1.5,-1.5)
+            i_ref = -resevoirpower /vb        
+            #i_ref = saturate(vpot-1.66, 1.5,-1.5)
             if va > 15:
                 i_ref = 0.01
             i_err = i_ref-iL # calculate the error in voltage

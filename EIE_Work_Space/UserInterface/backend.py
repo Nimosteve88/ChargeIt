@@ -242,23 +242,23 @@ def train_model():
 
 def combined_strategy(current_day, current_tick, current_buy_price, current_sell_price):
     global power, demand, energy, balance_reserve, decision, indicator, deferable_power, model
-    remaining_power = float(power['pv_power']) - (float(demand['demand']) + deferable_power)
+    remaining_power = float(power['pv_power']) - (float(demand['demand']) + deferable_power) 
     #remaining_power = 5.0     # Use this if you want to test ML model
     initial_decision = None
     # Initial demand strategy logic
-    if remaining_power < 0:
-        if float(energy['flywheel_energy']) <= 0.3:
+    if remaining_power < 0: #not enough power from pv
+        if float(energy['flywheel_energy']) <= 0.3: #if storage is empty
             initial_decision = "BUY"
             decision = "BUY"
             balance_reserve -= current_buy_price * abs(remaining_power)
             balance_reserve = round(balance_reserve)
             indicator = 1
-        else:
-            if abs(remaining_power) > float(energy['flywheel_energy']):
-                discharge_flywheel(-float(energy['flywheel_energy']))
+        else: #storage not empty
+            if (abs(remaining_power) * 5)> float(energy['flywheel_energy']): #required power more than storage
+                discharge_flywheel(-float(energy['flywheel_energy'])/5)
                 initial_decision = "BUY"
                 decision = "BUY"
-                balance_reserve -= current_buy_price * (abs(remaining_power) - float(energy['flywheel_energy']))
+                balance_reserve -= current_buy_price * (abs(remaining_power) - (float(energy['flywheel_energy'])/5))
                 balance_reserve = round(balance_reserve)
                 indicator = 1
             else:
@@ -301,9 +301,9 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
                 elif prediction <= 0.5:
                     decision = "SELL"
                     print(f"ML model decision: {decision}, model prediction: {prediction}")
-                    balance_reserve += float(current_buy_price) * float(energy['flywheel_energy'])
+                    balance_reserve += float(current_buy_price) * float(energy['flywheel_energy']) / 5
                     balance_reserve = round(balance_reserve)
-                    discharge_flywheel(-float(energy['flywheel_energy']) / 2)  # Incremental discharge
+                    discharge_flywheel(-float(energy['flywheel_energy']) / 10)  # Incremental discharge
                 else:
                     decision = "HOLD"
                     print(f"ML model decision: {decision}, model prediction: {prediction}")
