@@ -84,6 +84,7 @@
             </div>
         </div>
     </div>
+    
 
     <div class="deferablesdash" id="section4">
         <div id="deferables-data">
@@ -91,7 +92,8 @@
             <table id="deferables-table">
                 <thead>
                     <tr>
-                        <th>Energy</th>
+                        <th>Demand</th>
+                        <th>Day</th>
                         <th>Start</th>
                         <th>End</th>
                     </tr>
@@ -100,6 +102,8 @@
             </table>
         </div>
     </div>
+    
+    
 
 
     <div class="overalldatatrend" id="section5">
@@ -392,15 +396,16 @@
                 .then(response => response.json())
                 .then(data => {
                     var tableBody = document.getElementById('deferables-table').querySelector('tbody');
-                    tableBody.innerHTML = '';  // Clear the table body
-    
-                    data.forEach(item => {
+                    tableBody.innerHTML = '';  
+                
+                    data.deferables.forEach(item => {
                         var row = document.createElement('tr');
-                        row.innerHTML = `<td>${item.energy}</td><td>${item.start}</td><td>${item.end}</td>`;
+                        row.innerHTML = `<td>${item.demand}</td><td>${item.day}</td><td>${item.start}</td><td>${item.end}</td>`;
                         tableBody.appendChild(row);
                     });
                 });
-        }
+}
+
     
         setInterval(updateDeferablesData, 5000);
     </script>

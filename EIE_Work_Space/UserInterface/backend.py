@@ -77,8 +77,11 @@ class DeferablesData(Base):
     id = Column(Integer, primary_key=True)
     demand = Column(Float)
     day = Column(Integer)
+    start = Column(Integer)
+    end = Column(Integer)
     tick = Column(Integer)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
 
 class YesterdayData(Base):
     __tablename__ = 'yesterday_data'
@@ -134,9 +137,19 @@ def update_deferables_data(deferables_data, day, tick):
     try:
         session.query(DeferablesData).delete()
         for deferable in deferables_data:
-            new_data = DeferablesData(demand=deferable['energy'], day=day, tick=tick)
+            new_data = DeferablesData(
+                demand=deferable['energy'],
+                day=day,
+                start=deferable['start'],
+                end=deferable['end'],
+                tick=tick
+            )
             session.add(new_data)
         session.commit()
+        session.execute(text("""
+            DELETE FROM deferables_data a USING deferables_data b 
+            WHERE a.id < b.id AND a.demand = b.demand AND a.day = b.day AND a.tick = b.tick
+        """))
     except IntegrityError as e:
         session.rollback()
         print(f"Error updating deferables_data: {e}")
@@ -353,14 +366,16 @@ def handle_deferables(tick, deferables_data):
                 deferable_power += deferables_data[i]['power']
             elif tick > deferables_data[i]['end']:
                 deferables_data.pop(i)
-                #UNCOMMENT THIS SECTION WHEN YOU ARE READY TO TEST DEFERABLES, THIS IS IMPORTANT
-                # session = Session()         
-                # try:
-                #     session.query(DeferablesData).filter(DeferablesData.id == i).delete()
-                #     session.commit()
-                # except IntegrityError as e:
-                #     session.rollback()
-                #     print(f"Error deleting deferable data: {e}")
+                #Uncomment this when ready to test deferables
+    #             session = Session()
+    #             try:
+    #                 session.query(DeferablesData).filter(DeferablesData.start == deferables_data[i]['start'], DeferablesData.end == deferables_data[i]['end'], DeferablesData.demand == deferables_data[i]['energy']).delete()
+    #                 session.commit()
+    #             except Exception as e:
+    #                 session.rollback()
+    #                 print(f"Error deleting deferables_data: {e}")
+    #             finally:
+    #                 session.close()
     else:
         #if array is empty meaning all deferables are satisfied
         pass
@@ -503,18 +518,24 @@ def get_decision():
     global decision
     return jsonify({'decision': decision})
 
-@app.route('/power', methods=['GET', 'POST'])
-def get_deferables():
-    global power
-    if request.method == 'GET':
-        return jsonify(power)
-    elif request.method == 'POST':
-        data = request.json
-        if 'grid_power' in data:
-            power['grid_power'] = data['grid_power']
-        if 'pv_power' in data:
-            power['pv_power'] = data['pv_power']
-        return jsonify({'message': 'Data updated', 'data': power}), 200
+@app.route('/deferables', methods=['GET'])
+def get_deferables_data():
+    session = Session()
+    try:
+        result = session.execute(text("""
+            SELECT demand, day, "start", "end", tick
+            FROM deferables_data
+            ORDER BY tick ASC
+        """)).fetchall()
+
+        rows = [dict(row._mapping) for row in result]
+        data = {
+            "deferables": rows
+        }
+        return jsonify(data)
+    finally:
+        session.close()
+
     
 @app.route('/demand', methods=['GET', 'POST'])
 def get_demand():
@@ -572,10 +593,31 @@ def get_resevoirpower():
             resevoirpower['resevoirpower'] = data['resevoirpower']
         return jsonify({'message': 'Data updated', 'data': resevoirpower}), 200
 
-@app.route('/deferables', methods=['GET'])
-def get_deferables_data():
-    data = fetch_data(urls["deferables"])
-    return jsonify(data)
+def update_deferables_data(deferables_data, day, tick):
+    session = Session()
+    try:
+        session.query(DeferablesData).delete()
+        for deferable in deferables_data:
+            new_data = DeferablesData(
+                demand=deferable['energy'],
+                day=day,
+                start=deferable['start'],
+                end=deferable['end'],
+                tick=tick
+            )
+            session.add(new_data)
+        session.commit()
+        session.execute(text("""
+            DELETE FROM deferables_data a USING deferables_data b 
+            WHERE a.id < b.id AND a.demand = b.demand AND a.day = b.day AND a.tick = b.tick
+        """))
+    except IntegrityError as e:
+        session.rollback()
+        print(f"Error updating deferables_data: {e}")
+    finally:
+        session.close()
+
+    
 
 @app.route('/balance-data')
 def balance_data():

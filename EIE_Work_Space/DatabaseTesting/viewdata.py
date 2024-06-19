@@ -70,8 +70,33 @@ def delete_all_tables():
     except Exception as e:
         print(f"Error deleting tables: {e}")
         connection.rollback()
+#create a function to add start and end (integer) attributes to deferables_data
+def add_start_end():
+    try:
+        cursor.execute('ALTER TABLE deferables_data ADD COLUMN "start" INTEGER')
+        cursor.execute('ALTER TABLE deferables_data ADD COLUMN "end" INTEGER')
+        connection.commit()
+        print("Columns added successfully")
+    except Exception as e:
+        print(f"Error adding columns: {e}")
+        connection.rollback()
+
+#delete deferable_data items
+def delete_deferable_data():
+    try:
+        cursor.execute("DELETE FROM deferables_data")
+        connection.commit()
+        print("All data deleted successfully")
+    except Exception as e:
+        print(f"Error deleting data: {e}")
+        connection.rollback()
+
+
+
 
 #delete_all_data()
 #delete_all_tables()
+#delete_deferable_data()
 #view_all_data()
-view_data("price_data")
+#add_start_end()
+view_data("deferables_data")
