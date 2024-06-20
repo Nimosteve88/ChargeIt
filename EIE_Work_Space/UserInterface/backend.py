@@ -262,7 +262,7 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
     initial_decision = None
     # Initial demand strategy logic
     if remaining_power < 0: #not enough power from pv
-        if float(energy['flywheel_energy']) <= 0.3: #if storage is empty
+        if float(resevoir['resevoirenergy']) <= 0.3: #if storage is empty
             initial_decision = "BUY"
             decision = "BUY"
             balance_reserve -= current_buy_price * abs(remaining_power)
@@ -550,9 +550,11 @@ def get_demand():
             demand['demand'] = data['demand']
         return jsonify({'message': 'Data updated', 'data': demand}), 200
     
-@app.route('/gridpower', methods=['POST'])
+@app.route('/gridpower', methods=['GET', 'POST'])
 def get_grid():
-    if request.method == 'POST':
+    if request.method == 'GET':
+        return jsonify(power)
+    elif request.method == 'POST':
         data = request.json
         if 'gridpower' in data:
             power['gridpower'] = data['gridpower']
