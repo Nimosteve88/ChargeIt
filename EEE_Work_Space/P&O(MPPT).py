@@ -165,7 +165,6 @@ while True:
         min_pwm = 1000
         max_pwm = 65000
         iL = Vshunt / SHUNT_OHMS
-        #pwm_ref = saturate(65536 - int((vpot / 3.3) * 65536), max_pwm, min_pwm)
 
         #MPPT P&O
         if PpV > previous_power:

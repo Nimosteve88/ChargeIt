@@ -79,47 +79,6 @@ def reduceStepsize(step_size):
     else:
         step_size = step_size
     return step_size
-#function to send to server
-def send_message_to_server(message):
-    start_time = time.time()
-    # Define the server name and port client wishes to access
-    server_name = '192.168.194.92'   # Replace with current IP Address
-    server_port = 12001
-    client_port = 10001  # Change this to 11000 for the second client, every client must have unique port number
-    # Create a UDP client socket
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    client_socket.bind(('', client_port))
-    print("UDP client running...")
-    print("Connecting to server at IP:", server_name, "PORT:", server_port)
-    #This checks the state of message and performs the necessary encoding in order to send the message to the server
-    if type(message) == str:
-        msg = message.encode()
-    elif type(message) == float or type(message) == int:
-        msg = str(message).encode()
-    elif type(message) == dict:
-        msg = json.dumps(message).encode()
-    else:
-        print("Invalid message type. Please provide a string, float, integer or dictionary.")
-        return
-    # Send the message to the server
-    client_socket.sendto(msg, (server_name, server_port))
-    # Set up the polling object for timeout handling
-    poll = select.poll()
-    poll.register(client_socket, select.POLLIN)
-    # Wait for a response with a timeout of 2 seconds
-    events = poll.poll(2000)  # 2000 milliseconds
-    if events:
-        for event in events:
-            if event[1] & select.POLLIN:
-                data, server_address = client_socket.recvfrom(2048)
-                if data:
-                    print("Message from Server:", data.decode())
-    else:
-        print("No response from server within timeout period.")
-    # Close the socket
-    client_socket.close()
-    # Print message sent confirmation
-    print("Message has been successfully sent in", time.time() - start_time, "seconds")
 
 # Saturation function for anything you want saturated within bounds
 def saturate(signal, upper, lower):
@@ -197,8 +156,7 @@ while True:
         vpot = sum(v_pot_filt) / 100  # Actual reading used is the average of the last 100 readings
 
         Vshunt = ina.vshunt()
-        Vbus = vb #ina.vbus()
-        #Vbus = vb
+        Vbus = vb 
         Ipv = Vshunt / SHUNT_OHMS
         Ppv = Vbus * -Ipv
 
@@ -206,11 +164,9 @@ while True:
         min_pwm = 1000
         max_pwm = 65000
         iL = Vshunt / SHUNT_OHMS
-        #pwm_ref = saturate(65536 - int((vpot / 3.3) * 65536), max_pwm, min_pwm)  # convert the pot value to a PWM value for use later
-        
-        
+
         # Incremental Conductance Algorithm to update Vref
-        #claculate changes
+        #calculate changes
         dV = Vbus - Vold
         dP = Ppv - Pold
         dI = iL - Iold
@@ -250,16 +206,12 @@ while True:
         #add a delay to prevent oscillations
         utime.sleep_ms(25)
 
-
         count += 1
         timer_elapsed = 0
 
         # This set of prints execute
         Power = va*iL
         PowerIN = vb*-iL
-
-        #Power to be send to the server
-        #send_message_to_server(round(va,3)) 
              
         # This set of prints executes every 100 loops by default and can be used to output debug or extra info over USB enable or disable lines as needed
         if count > 100:
@@ -268,14 +220,9 @@ while True:
             print("PowerIn ={:.3f}".format(PowerIN))
             print("Va = {:.3f}".format(va))
             print("Vb = {:.3f}".format(vb))
-            #print("Vpot = {:.3f}".format(vpot))
             print("iL = {:.3f}".format(iL))
             print("Pold = {:.3f}".format(Pold))
             print("Ppv= {:.3f}".format(Ppv))
-            #print("OC = {:b}".format(OC))
-            #print("CL = {:b}".format(CL))
-            #print("BU = {:b}".format(BU))
-            #print("duty = {:d}".format(duty))
             print("duty% = {:.3f}".format(duty/655.36))
             print("i_err = {:.3f}".format(i_err))
             print("i_ref = {:.3f}".format(i_ref))

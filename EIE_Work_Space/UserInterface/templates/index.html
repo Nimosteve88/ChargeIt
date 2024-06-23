@@ -134,10 +134,10 @@
     </div>
     
     
-    <div class="overalldatatrend" id="section3">
+    <!-- <div class="overalldatatrend" id="section3">
         <h2 class="dashboard-title">Overall Pricing Trend</h2>
         <canvas id="priceChart"></canvas>
-    </div>
+    </div> -->
 
     <script>
         var ctx = document.getElementById('liveChart').getContext('2d');
@@ -454,7 +454,7 @@
         setInterval(fetchBalanceData, 1000);
     </script>
     
-    <script>
+    <!-- <script>
         var ctx = document.getElementById('priceChart').getContext('2d');
         var priceChart = new Chart(ctx, {
             type: 'line',
@@ -521,7 +521,7 @@
         }
     
         setInterval(updateChart, 6000);
-    </script>
+    </script> -->
     
 </body>
 </html>

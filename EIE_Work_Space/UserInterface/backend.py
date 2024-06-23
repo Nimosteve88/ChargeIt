@@ -277,7 +277,10 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
                 balance_reserve = round(balance_reserve)
                 indicator = 1
             else:
+                initial_decision = None
                 discharge_flywheel(float(remaining_power))
+    # if model is not None:
+    #     print("model exists")
     # Secondary decision based on price trends using ML model
     if initial_decision is None and model is not None:
         print("Using ML model for decision making...")
@@ -307,13 +310,13 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
                 dmatrix = xgb.DMatrix(X.values.reshape(1, -1), feature_names=FEATURE_NAMES)
                 prediction = model.predict(dmatrix) 
                 # Use a threshold to decide
-                if prediction >= 0.7:
+                if prediction >= 0.8:
                     decision = "BUY"
                     print(f"ML model decision: {decision}, model prediction: {prediction}")
                     balance_reserve -= float(current_sell_price) * 1.48  # Incremental buy
                     balance_reserve = round(balance_reserve)
                     charge_flywheel(1.48)
-                elif prediction <= 0.5:
+                elif prediction <= 0.6:
                     decision = "SELL"
                     print(f"ML model decision: {decision}, model prediction: {prediction}")
                     balance_reserve += float(current_buy_price) * float(resevoir['resevoirenergy']) / 5
@@ -326,16 +329,29 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
         except Exception as e:
             print(f"Error in trading_strategy: {e}")
 
-    else:
+    elif model is None:
         print("Using last option for decision making...")
+
         last_10_sell_prices = fetch_last_n_sell_prices(current_day, current_tick, 10)
+        last_10_buy_prices = fetch_last_n_buy_prices(current_day, current_tick, 10)
+                
         if len(last_10_sell_prices) < 10:
             remaining_needed = 10 - len(last_10_sell_prices)
             last_10_sell_prices += fetch_last_n_sell_prices_yesterday(remaining_needed)
+                
+        if len(last_10_buy_prices) < 10:
+            remaining_needed = 10 - len(last_10_buy_prices)
+            last_10_buy_prices += fetch_last_n_buy_prices_yesterday(remaining_needed)
+                
         all_sell_prices = last_10_sell_prices + [current_sell_price]
+        all_buy_prices = last_10_buy_prices + [current_buy_price]
+
         avg_sell_price = sum(all_sell_prices) / len(all_sell_prices)
-        
+        avg_buy_price = sum(all_buy_prices) / len(all_buy_prices)
+
         localsell = sum(all_sell_prices[-3:]) / 3
+        localbuy = sum(all_buy_prices[-3:]) / 3
+
 
         if current_sell_price < avg_sell_price:
             if current_sell_price < localsell * 0.85:
@@ -343,11 +359,15 @@ def combined_strategy(current_day, current_tick, current_buy_price, current_sell
                 balance_reserve = round(balance_reserve - float(current_sell_price) * 1.48)
                 charge_flywheel(1.48)
 
+        elif current_buy_price > avg_buy_price:
+            if current_buy_price > localbuy * 1.15:
+                decision = "SELL"
+                balance_reserve += float(current_buy_price) * float(resevoir['resevoirenergy']) / 5
+                balance_reserve = round(balance_reserve)
+                discharge_flywheel(-float(resevoir['resevoirenergy']) / 10)  # Incremental discharge
+
+
     print(f"Combined strategy decision: {decision}")
-
-
-
-
 def discharge_flywheel(amount):
     # logic to discharge flywheel/capacitor
     resevoir['resevoirpower'] = str(amount)
@@ -486,34 +506,34 @@ def data():
     finally:
         session.close()
 
-@app.route('/alldata')
-def alldata():
-    session = Session()
-    try:
-        result = session.execute(text("""
-            SELECT tick, buy_price, sell_price, day, timestamp
-            FROM price_data
-            ORDER BY tick ASC
-        """)).fetchall()
+# @app.route('/alldata')
+# def alldata():
+#     session = Session()
+#     try:
+#         result = session.execute(text("""
+#             SELECT tick, buy_price, sell_price, day, timestamp
+#             FROM price_data
+#             ORDER BY tick ASC
+#         """)).fetchall()
         
-        rows = [dict(row._mapping) for row in result]
+#         rows = [dict(row._mapping) for row in result]
 
-        if not rows:
-            return jsonify({"ticks": [], "buy_prices": [], "cumulative_buy_avg": [], "cumulative_sell_avg": [], "avg_buy_price_per_tick": [], "sell_prices": []})
+#         if not rows:
+#             return jsonify({"ticks": [], "buy_prices": [], "cumulative_buy_avg": [], "cumulative_sell_avg": [], "avg_buy_price_per_tick": [], "sell_prices": []})
 
-        df = pd.DataFrame(rows, columns=['tick', 'buy_price', 'sell_price', 'day', 'timestamp'])
-        cumulative_buy_avg = calculate_cumulative_average(df, 'buy_price')
-        cumulative_sell_avg = calculate_cumulative_average(df, 'sell_price')
-        avg_buy_price_per_tick = df.groupby('tick')['buy_price'].mean().tolist()
+#         df = pd.DataFrame(rows, columns=['tick', 'buy_price', 'sell_price', 'day', 'timestamp'])
+#         cumulative_buy_avg = calculate_cumulative_average(df, 'buy_price')
+#         cumulative_sell_avg = calculate_cumulative_average(df, 'sell_price')
+#         avg_buy_price_per_tick = df.groupby('tick')['buy_price'].mean().tolist()
 
-        data = {
-            "ticks": df['tick'].tolist(),
-            "cumulative_buy_avg": cumulative_buy_avg,
-            "cumulative_sell_avg": cumulative_sell_avg
-        }
-        return jsonify(data)
-    finally:
-        session.close()
+#         data = {
+#             "ticks": df['tick'].tolist(),
+#             "cumulative_buy_avg": cumulative_buy_avg,
+#             "cumulative_sell_avg": cumulative_sell_avg
+#         }
+#         return jsonify(data)
+#     finally:
+#         session.close()
 
 @app.route('/decision')
 def get_decision():
